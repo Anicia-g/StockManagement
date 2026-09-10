@@ -1,6 +1,6 @@
 import Product from '../models/Product.js';
 import Transfer from '../models/Transfer.js';
-import StockHistory from '../models/StockHistory.js';
+import StockTransaction from '../models/StockTransaction.js';
 import Notification from '../models/Notification.js';
 
 // @desc    Get all transfers with optional filtering
@@ -50,7 +50,7 @@ export const getTransfers = async (req, res, next) => {
   }
 };
 
-// @desc    Issue stock transfer to department (Admin only)
+// @desc    Issue stock transfer to department
 // @route   POST /api/transfers
 export const issueTransfer = async (req, res, next) => {
   try {
@@ -73,12 +73,18 @@ export const issueTransfer = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Receiving department is required.' });
     }
 
-    const product = await Product.findById(productId);
+    let product = null;
+    if (productId.match(/^[0-9a-fA-F]{24}$/)) {
+      product = await Product.findById(productId);
+    }
+    if (!product) {
+      product = await Product.findOne({ productCode: productId.toUpperCase() });
+    }
+
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found.' });
     }
 
-    // Validation: cannot transfer more than available stock
     if (qty > product.currentQuantity) {
       return res.status(400).json({
         success: false,
@@ -87,12 +93,13 @@ export const issueTransfer = async (req, res, next) => {
     }
 
     const transferCount = await Transfer.countDocuments();
-    const transferId = `TRF-2026-${String(transferCount + 1).padStart(3, '0')}`;
+    const transferId = `TRF-${new Date().getFullYear()}-${String(transferCount + 1).padStart(3, '0')}`;
     const previousQuantity = product.currentQuantity;
     const newQuantity = previousQuantity - qty;
 
     // Deduct stock
     product.currentQuantity = newQuantity;
+    product.updatedBy = req.user ? req.user.name : 'Admin';
     await product.save();
 
     // Create Transfer record
@@ -100,63 +107,51 @@ export const issueTransfer = async (req, res, next) => {
       transferId,
       productId: product._id,
       productCode: product.productCode,
-      productName: product.name,
+      productName: product.productName || product.name,
       stockRegister: product.stockRegister || 'SR1',
       quantity: qty,
       unit: product.unit || 'Pieces',
       department: department.trim(),
       indentId: indentId || null,
-      indentNumber: indentNumber || null,
-      issuedBy: req.user ? req.user.name : 'Admin',
+      indentNumber: indentNumber || '',
       date: date || new Date().toISOString().split('T')[0],
+      recordedBy: req.user ? req.user.name : 'Admin',
       remarks: remarks || ''
     });
 
-    // Create StockHistory transaction record (type: TRANSFER)
-    const historyCount = await StockHistory.countDocuments();
-    const transactionId = `TXN-2026-${String(historyCount + 1).padStart(3, '0')}`;
-
-    await StockHistory.create({
-      transactionId,
-      date: date || new Date().toISOString().split('T')[0],
+    // Create StockTransaction entry
+    await StockTransaction.create({
+      transactionId: transferId,
+      transactionType: 'OUT',
       productId: product._id,
       productCode: product.productCode,
-      productName: product.name,
-      stockRegister: product.stockRegister || 'SR1',
-      type: 'TRANSFER',
+      productName: product.productName || product.name,
       quantity: qty,
       previousQuantity,
       newQuantity,
       department: department.trim(),
-      referenceId: indentNumber || transferId,
-      performedBy: req.user ? req.user.name : 'Admin',
-      remarks: remarks || `Transferred to ${department.trim()}`
+      date: date || new Date().toISOString().split('T')[0],
+      referenceId: transferId,
+      recordedBy: req.user ? req.user.name : 'Admin',
+      remarks: `Stock Issue to ${department.trim()}. ${remarks || ''}`
     });
 
-    // Trigger Low Stock Notification if newQuantity <= minStock
-    if (newQuantity <= product.minimumStockLevel) {
-      const isCritical = newQuantity <= Math.floor(product.minimumStockLevel / 2);
+    const minStock = product.minimumQuantity !== undefined ? product.minimumQuantity : product.minimumStockLevel;
+    if (newQuantity <= minStock) {
       await Notification.create({
-        title: isCritical ? 'Critical Low Stock Alert' : 'Low Stock Warning',
-        message: `${product.name} (${product.productCode}) is at ${newQuantity} ${product.unit} (Minimum required: ${product.minimumStockLevel}).`,
+        title: 'Low Stock Alert',
+        message: `Product "${product.productName || product.name}" (${product.productCode}) is down to ${newQuantity} ${product.unit} (Minimum: ${minStock}).`,
         type: 'LOW_STOCK',
         targetRole: 'ADMIN',
         referenceId: product.productCode
-      });
+      }).catch(err => console.error(err));
     }
 
     res.status(201).json({
       success: true,
-      message: `Successfully transferred ${qty} ${product.unit} of ${product.name} to ${department}. Remaining stock: ${newQuantity}.`,
+      message: `Successfully transferred ${qty} ${product.unit} to ${department}`,
       transfer,
-      product: {
-        id: product._id,
-        name: product.name,
-        previousQuantity,
-        transferredQuantity: qty,
-        newQuantity,
-        isLowStock: newQuantity <= product.minimumStockLevel
-      }
+      updatedProduct: product
     });
   } catch (error) {
     next(error);

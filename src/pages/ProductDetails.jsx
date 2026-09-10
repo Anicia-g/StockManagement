@@ -29,14 +29,37 @@ export const ProductDetails = () => {
   const loadProductData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await productApi.getProductById(id);
-      if (res.success) {
-        setProduct(res.product);
-
-        // Fetch history transactions matching this product
-        const histRes = await historyApi.getStockHistory({ search: res.product.productCode });
-        if (histRes.success) {
-          setHistory(histRes.transactions);
+      const res = await productApi.getProductDetails(id);
+      if (res.success && res.product) {
+        const prod = res.product;
+        // Merge references
+        if (res.references && res.references.length > 0) {
+          prod.registerRefs = res.references.map(r => ({
+            sheet: r.sheet || r.stockDocument || r.stockDocumentName,
+            page: r.page || r.pageNumber,
+            note: r.referenceNote
+          }));
+        }
+        // Merge remarks
+        if (res.remarks && res.remarks.length > 0) {
+          prod.remarks = res.remarks.map(rem => ({
+            id: rem._id || rem.id,
+            author: rem.enteredBy || rem.author || 'Store Staff',
+            date: rem.enteredAt ? new Date(rem.enteredAt).toISOString().split('T')[0] : (rem.date || new Date().toISOString().split('T')[0]),
+            text: rem.remark || rem.text
+          }));
+        }
+        setProduct(prod);
+        setHistory(res.history || []);
+      } else {
+        // Fallback to getProductById
+        const singleRes = await productApi.getProductById(id);
+        if (singleRes.success) {
+          setProduct(singleRes.product);
+          const histRes = await historyApi.getStockHistory({ search: singleRes.product.productCode });
+          if (histRes.success) {
+            setHistory(histRes.transactions || []);
+          }
         }
       }
     } catch (err) {
@@ -78,8 +101,10 @@ export const ProductDetails = () => {
     );
   }
 
-  const isLowStock = product.currentQuantity <= product.minimumStockLevel;
-  const isNearing = !isLowStock && product.currentQuantity <= product.minimumStockLevel + 2;
+  const minStock = product.minimumQuantity !== undefined ? product.minimumQuantity : (product.minimumStockLevel || 5);
+  const curQty = product.currentQuantity !== undefined ? product.currentQuantity : (product.currentStock || 0);
+  const isLowStock = curQty <= minStock;
+  const isNearing = !isLowStock && curQty <= minStock + 2;
   const statusText = isLowStock ? 'Low Stock' : isNearing ? 'Nearing Limit' : 'Available';
 
   const handleSaveRemark = async (e) => {
@@ -88,25 +113,32 @@ export const ProductDetails = () => {
 
     try {
       const res = await productApi.addRemark(product._id || product.id, {
+        remark: remarkText.trim(),
         text: remarkText.trim(),
         author: remarkAuthor
       });
       if (res.success) {
+        const newRem = {
+          id: res.remark?._id || `rem-${Date.now()}`,
+          author: remarkAuthor,
+          date: new Date().toISOString().split('T')[0],
+          text: remarkText.trim()
+        };
         setProduct((prev) => ({
           ...prev,
-          remarks: [res.remark, ...(prev.remarks || [])]
+          remarks: [newRem, ...(prev.remarks || [])]
         }));
         setRemarkText('');
         setIsAddRemarkOpen(false);
       }
     } catch (err) {
-      alert('Failed to save remark.');
+      alert(err.response?.data?.message || 'Failed to save remark.');
     }
   };
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete "${product.name}" (${product.productCode})?`
+      `Are you sure you want to deactivate "${product.productName || product.name}" (${product.productCode})?`
     );
     if (!confirmed) return;
 
@@ -124,7 +156,7 @@ export const ProductDetails = () => {
   return (
     <Layout
       title="Product Details"
-      breadcrumb={`Products / ${product.name} (${product.productCode})`}
+      breadcrumb={`Products / ${product.productName || product.name} (${product.productCode})`}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <Link to="/products" className="back-link" style={{ marginBottom: 0 }}>
@@ -145,7 +177,7 @@ export const ProductDetails = () => {
               size="sm"
               onClick={handleDelete}
             >
-              🗑 Delete Product
+              🗑 Deactivate Product
             </Button>
           </div>
         )}
@@ -153,7 +185,7 @@ export const ProductDetails = () => {
 
       <div className="detail-head">
         <div>
-          <h1 style={{ marginBottom: '2px' }}>{product.name}</h1>
+          <h1 style={{ marginBottom: '2px' }}>{product.productName || product.name}</h1>
           <span className="code">
             {product.productCode} · {product.category} · Unit: {product.unit || 'Pieces'} · Primary Register:{' '}
             <strong>{product.stockRegister || 'SR1'}</strong>
@@ -174,13 +206,13 @@ export const ProductDetails = () => {
             <div>
               <div className="dt">Current Available Stock</div>
               <div className="dd" style={{ fontSize: '1.25rem' }}>
-                {product.currentQuantity} {product.unit || 'Pieces'}
+                {curQty} {product.unit || 'Pieces'}
               </div>
             </div>
             <div>
               <div className="dt">Minimum Threshold Level</div>
               <div className="dd">
-                {product.minimumStockLevel} {product.unit || 'Pieces'}
+                {minStock} {product.unit || 'Pieces'}
               </div>
             </div>
             <div>
@@ -196,7 +228,7 @@ export const ProductDetails = () => {
                 }}
               >
                 {isLowStock
-                  ? `Below Minimum (${product.minimumStockLevel - product.currentQuantity} unit deficit)`
+                  ? `Below Minimum (${minStock - curQty} unit deficit)`
                   : isNearing
                   ? 'Near Minimum Threshold'
                   : 'Healthy / Available in Store'}
@@ -219,8 +251,8 @@ export const ProductDetails = () => {
       <div className="section">
         <div className="card">
           <div className="card-head">
-            <h2>Stock Movement History (Purchases & Transfers)</h2>
-            <span className="hint">All recorded purchase receipts and department issues</span>
+            <h2>Stock Movement History (Purchases & Issues)</h2>
+            <span className="hint">All recorded receipts and department issues</span>
           </div>
           <div className="table-wrap">
             {history.length === 0 ? (
@@ -236,33 +268,29 @@ export const ProductDetails = () => {
                     <th>Date</th>
                     <th>Transaction Type</th>
                     <th>Quantity</th>
-                    <th>Stock Register</th>
                     <th>Department / Supplier</th>
-                    <th>Performed By</th>
+                    <th>Recorded By</th>
                     <th>Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.map((txn) => {
-                    const isPurchase = txn.type === 'PURCHASE';
+                    const isIncoming = txn.type === 'IN' || txn.type === 'PURCHASE' || txn.transactionType === 'IN' || txn.transactionType === 'PURCHASE';
                     return (
-                      <tr key={txn._id || txn.transactionId}>
+                      <tr key={txn._id || txn.id || txn.transactionId}>
                         <td style={{ whiteSpace: 'nowrap' }}>{txn.date}</td>
                         <td>
-                          <span className={isPurchase ? 'tag-in' : 'tag-out'}>
-                            {txn.type}
+                          <span className={isIncoming ? 'tag-in' : 'tag-out'}>
+                            {isIncoming ? 'IN' : 'OUT'}
                           </span>
                         </td>
                         <td>
-                          <strong style={{ color: isPurchase ? 'var(--green-600)' : 'var(--red-600)' }}>
-                            {isPurchase ? `+${txn.quantity}` : `-${txn.quantity}`}
+                          <strong style={{ color: isIncoming ? 'var(--green-600)' : 'var(--red-600)' }}>
+                            {isIncoming ? `+${txn.quantity}` : `-${txn.quantity}`}
                           </strong>
                         </td>
-                        <td>
-                          <span className="badge badge-blue">{txn.stockRegister || 'SR1'}</span>
-                        </td>
                         <td>{txn.department || 'Store'}</td>
-                        <td>{txn.performedBy || 'Admin'}</td>
+                        <td>{txn.recordedBy || txn.performedBy || 'Admin'}</td>
                         <td className="small">{txn.remarks || '—'}</td>
                       </tr>
                     );
@@ -296,12 +324,12 @@ export const ProductDetails = () => {
               />
             ) : (
               product.remarks.map((rem, i) => (
-                <div key={rem.id || i} className="remark">
+                <div key={rem.id || rem._id || i} className="remark">
                   <div className="remark-head">
-                    <span className="who">{rem.author}</span>
-                    <span className="when">{rem.date}</span>
+                    <span className="who">{rem.author || rem.enteredBy}</span>
+                    <span className="when">{rem.date || (rem.enteredAt ? new Date(rem.enteredAt).toISOString().split('T')[0] : '')}</span>
                   </div>
-                  <p>{rem.text}</p>
+                  <p>{rem.text || rem.remark}</p>
                 </div>
               ))
             )}
@@ -313,7 +341,7 @@ export const ProductDetails = () => {
       <Modal
         isOpen={isAddRemarkOpen}
         onClose={() => setIsAddRemarkOpen(false)}
-        title={`Add Technical Remark for ${product.name}`}
+        title={`Add Technical Remark for ${product.productName || product.name}`}
       >
         <form onSubmit={handleSaveRemark}>
           <div className="field">
@@ -340,7 +368,7 @@ export const ProductDetails = () => {
           </div>
 
           <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-            <Button variant="outline" onClick={() => setIsAddRemarkOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsAddRemarkOpen(false)}>
               Cancel
             </Button>
             <Button variant="primary" type="submit">

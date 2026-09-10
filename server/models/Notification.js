@@ -11,12 +11,12 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['LOW_STOCK', 'INDENT_CREATED', 'INDENT_STATUS', 'PURCHASE', 'TRANSFER', 'SYSTEM'],
+    enum: ['LOW_STOCK', 'INDENT_CREATED', 'INDENT_STATUS', 'PURCHASE', 'TRANSFER', 'STOCK_IN', 'STOCK_OUT', 'SYSTEM'],
     default: 'SYSTEM'
   },
   targetRole: {
     type: String,
-    enum: ['ADMIN', 'FACULTY', 'ALL'],
+    enum: ['ADMIN', 'STAFF', 'FACULTY', 'VIEWER', 'ALL'],
     default: 'ALL'
   },
   targetUserId: {

@@ -1,14 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useStock } from "../../context/StockContext";
 import Button from "../common/Button";
+import { productApi, stockApi } from "../../services/api";
 
 export const IncomingStockForm = () => {
-  const { products, recordIncomingStock } = useStock();
-
-  const [selectedProductId, setSelectedProductId] = useState(
-    products[0]?.id || ""
-  );
+  const [products, setProducts] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState(50);
   const [date, setDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -17,13 +14,33 @@ export const IncomingStockForm = () => {
     "Received from Sri Balaji Electricals, invoice #INV-4432."
   );
   const [feedback, setFeedback] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const selectedProduct = products.find((p) => p.id === selectedProductId);
-  const currentStock = selectedProduct ? selectedProduct.currentStock : 0;
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await productApi.getProducts();
+        if (res.success && res.products) {
+          setProducts(res.products);
+          if (res.products.length > 0 && !selectedProductId) {
+            setSelectedProductId(res.products[0]._id || res.products[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load products:", err);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  const selectedProduct = products.find(
+    (p) => (p._id || p.id) === selectedProductId || p.productCode === selectedProductId
+  );
+  const currentStock = selectedProduct ? (selectedProduct.currentQuantity !== undefined ? selectedProduct.currentQuantity : selectedProduct.currentStock) : 0;
   const numQty = Number(quantity) || 0;
   const newCalculatedStock = currentStock + (numQty > 0 ? numQty : 0);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedProductId || numQty <= 0) {
       setFeedback({
@@ -33,23 +50,44 @@ export const IncomingStockForm = () => {
       return;
     }
 
-    const result = recordIncomingStock({
-      productId: selectedProductId,
-      quantity: numQty,
-      date,
-      remarks
-    });
-
-    if (result.success) {
-      setFeedback({
-        type: "success",
-        message: `Successfully recorded ${result.addedQty} units for ${result.productName}. Stock updated from ${result.prevStock} to ${result.newStock}.`
+    setLoading(true);
+    try {
+      const res = await stockApi.incoming({
+        productId: selectedProductId,
+        quantity: numQty,
+        date,
+        remarks
       });
-      // Reset quantity
-      setQuantity(0);
-      setRemarks("");
-    } else {
-      setFeedback({ type: "error", message: result.error });
+
+      if (res.success) {
+        const prodName = res.product?.productName || res.product?.name || selectedProduct?.productName || selectedProduct?.name;
+        const prev = res.previousQuantity !== undefined ? res.previousQuantity : currentStock;
+        const cur = res.currentQuantity !== undefined ? res.currentQuantity : newCalculatedStock;
+
+        setFeedback({
+          type: "success",
+          message: `Stock Updated Successfully: ${prodName} | Previous: ${prev} | Added: +${numQty} | Current: ${cur}`
+        });
+
+        // Update local products list
+        setProducts((prevList) =>
+          prevList.map((p) =>
+            (p._id || p.id) === selectedProductId ? { ...p, currentQuantity: cur, currentStock: cur } : p
+          )
+        );
+
+        setQuantity(0);
+        setRemarks("");
+      } else {
+        setFeedback({ type: "error", message: res.message || "Failed to record stock." });
+      }
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err.response?.data?.message || err.message || "Error communicating with server."
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -83,11 +121,17 @@ export const IncomingStockForm = () => {
                 }}
                 required
               >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.id}) — Current Stock: {p.currentStock} {p.unit}
-                  </option>
-                ))}
+                {products.map((p) => {
+                  const pId = p._id || p.id;
+                  const pName = p.productName || p.name;
+                  const pCode = p.productCode;
+                  const pStock = p.currentQuantity !== undefined ? p.currentQuantity : p.currentStock;
+                  return (
+                    <option key={pId} value={pId}>
+                      {pName} ({pCode}) — Current Stock: {pStock} {p.unit}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -152,8 +196,8 @@ export const IncomingStockForm = () => {
           </div>
 
           <div className="form-actions">
-            <Button variant="primary" type="submit">
-              Record Incoming Stock
+            <Button variant="primary" type="submit" disabled={loading}>
+              {loading ? "Recording..." : "Record Incoming Stock"}
             </Button>
             <Link to="/products" className="btn-outline">
               Cancel

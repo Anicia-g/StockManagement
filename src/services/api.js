@@ -49,6 +49,41 @@ export const authApi = {
   }
 };
 
+export const masterDataApi = {
+  getDepartments: async () => {
+    const res = await api.get('/departments');
+    return res.data;
+  },
+  createDepartment: async (data) => {
+    const res = await api.post('/departments', data);
+    return res.data;
+  },
+  getCategories: async () => {
+    const res = await api.get('/categories');
+    return res.data;
+  },
+  createCategory: async (data) => {
+    const res = await api.post('/categories', data);
+    return res.data;
+  },
+  getUnits: async () => {
+    const res = await api.get('/units');
+    return res.data;
+  },
+  createUnit: async (data) => {
+    const res = await api.post('/units', data);
+    return res.data;
+  },
+  getStockDocuments: async () => {
+    const res = await api.get('/stock-documents');
+    return res.data;
+  },
+  createStockDocument: async (data) => {
+    const res = await api.post('/stock-documents', data);
+    return res.data;
+  }
+};
+
 export const productApi = {
   getProducts: async (params = {}) => {
     const res = await api.get('/products', { params });
@@ -56,6 +91,10 @@ export const productApi = {
   },
   getProductById: async (id) => {
     const res = await api.get(`/products/${id}`);
+    return res.data;
+  },
+  getProductDetails: async (id) => {
+    const res = await api.get(`/products/${id}/details`);
     return res.data;
   },
   createProduct: async (productData) => {
@@ -70,8 +109,47 @@ export const productApi = {
     const res = await api.delete(`/products/${id}`);
     return res.data;
   },
+  getReferences: async (id) => {
+    const res = await api.get(`/products/${id}/references`);
+    return res.data;
+  },
+  createReference: async (id, refData) => {
+    const res = await api.post(`/products/${id}/references`, refData);
+    return res.data;
+  },
+  updateReference: async (id, refId, refData) => {
+    const res = await api.put(`/products/${id}/references/${refId}`, refData);
+    return res.data;
+  },
+  deleteReference: async (id, refId) => {
+    const res = await api.delete(`/products/${id}/references/${refId}`);
+    return res.data;
+  },
+  getRemarks: async (id) => {
+    const res = await api.get(`/products/${id}/remarks`);
+    return res.data;
+  },
   addRemark: async (id, remarkData) => {
     const res = await api.post(`/products/${id}/remarks`, remarkData);
+    return res.data;
+  }
+};
+
+export const stockApi = {
+  incoming: async (stockData) => {
+    const res = await api.post('/stock/incoming', stockData);
+    return res.data;
+  },
+  outgoing: async (stockData) => {
+    const res = await api.post('/stock/outgoing', stockData);
+    return res.data;
+  },
+  getHistory: async (params = {}) => {
+    const res = await api.get('/stock/history', { params });
+    return res.data;
+  },
+  getLowStock: async () => {
+    const res = await api.get('/stock/low-stock');
     return res.data;
   }
 };
@@ -111,6 +189,30 @@ export const indentApi = {
     const res = await api.post('/indents', indentData);
     return res.data;
   },
+  updateIndent: async (id, indentData) => {
+    const res = await api.put(`/indents/${id}`, indentData);
+    return res.data;
+  },
+  submitIndent: async (id) => {
+    const res = await api.post(`/indents/${id}/submit`);
+    return res.data;
+  },
+  recommendIndent: async (id, data) => {
+    const res = await api.post(`/indents/${id}/recommend`, data);
+    return res.data;
+  },
+  approveIndent: async (id, data) => {
+    const res = await api.post(`/indents/${id}/approve`, data);
+    return res.data;
+  },
+  rejectIndent: async (id, data) => {
+    const res = await api.post(`/indents/${id}/reject`, data);
+    return res.data;
+  },
+  issueIndent: async (id, data) => {
+    const res = await api.post(`/indents/${id}/issue`, data);
+    return res.data;
+  },
   reviewIndent: async (id, reviewData) => {
     const res = await api.post(`/indents/${id}/review`, reviewData);
     return res.data;
@@ -141,7 +243,7 @@ export const notificationApi = {
 
 export const analyticsApi = {
   getDashboardStats: async () => {
-    const res = await api.get('/analytics/dashboard');
+    const res = await api.get('/dashboard');
     return res.data;
   },
   getAnalyticsOverview: async (params = {}) => {

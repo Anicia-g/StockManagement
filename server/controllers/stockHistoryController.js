@@ -1,26 +1,33 @@
-import StockHistory from '../models/StockHistory.js';
+import StockTransaction from '../models/StockTransaction.js';
 
 // @desc    Get stock history transactions with filters
 // @route   GET /api/history
 export const getStockHistory = async (req, res, next) => {
   try {
-    const { type, department, date, search, register, page, limit } = req.query;
+    const { type, transactionType, department, date, fromDate, toDate, search, register, page, limit } = req.query;
     let query = {};
 
-    if (type && type !== 'ALL') {
-      query.type = type;
+    const resolvedType = transactionType || type;
+    if (resolvedType && resolvedType !== 'ALL') {
+      if (resolvedType === 'IN' || resolvedType === 'PURCHASE') {
+        query.transactionType = { $in: ['IN', 'PURCHASE'] };
+      } else if (resolvedType === 'OUT' || resolvedType === 'TRANSFER') {
+        query.transactionType = { $in: ['OUT', 'TRANSFER'] };
+      } else {
+        query.transactionType = resolvedType;
+      }
     }
 
     if (department && department !== 'ALL') {
       query.department = { $regex: department, $options: 'i' };
     }
 
-    if (date) {
+    if (fromDate || toDate) {
+      query.date = {};
+      if (fromDate) query.date.$gte = fromDate;
+      if (toDate) query.date.$lte = toDate;
+    } else if (date) {
       query.date = date;
-    }
-
-    if (register && register !== 'ALL') {
-      query.stockRegister = register;
     }
 
     if (search) {
@@ -29,39 +36,50 @@ export const getStockHistory = async (req, res, next) => {
         { productCode: { $regex: search, $options: 'i' } },
         { transactionId: { $regex: search, $options: 'i' } },
         { referenceId: { $regex: search, $options: 'i' } },
+        { department: { $regex: search, $options: 'i' } },
+        { recordedBy: { $regex: search, $options: 'i' } },
         { remarks: { $regex: search, $options: 'i' } }
       ];
     }
 
-    const total = await StockHistory.countDocuments(query);
-    let historyQuery = StockHistory.find(query).sort({ createdAt: -1 });
+    const total = await StockTransaction.countDocuments(query);
+    let historyQuery = StockTransaction.find(query).sort({ createdAt: -1, date: -1 });
 
-    if (page && limit) {
-      const pageNum = Math.max(1, parseInt(page) || 1);
-      const pageSize = Math.max(1, parseInt(limit) || 10);
-      historyQuery = historyQuery.skip((pageNum - 1) * pageSize).limit(pageSize);
-      const transactions = await historyQuery;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const pageSize = Math.max(1, parseInt(limit) || 20);
+    historyQuery = historyQuery.skip((pageNum - 1) * pageSize).limit(pageSize);
+    const rawTransactions = await historyQuery;
 
-      return res.json({
-        success: true,
-        count: transactions.length,
-        total,
-        page: pageNum,
-        totalPages: Math.ceil(total / pageSize),
-        limit: pageSize,
-        transactions,
-        history: transactions
-      });
-    }
+    const formatted = rawTransactions.map(t => ({
+      id: t._id,
+      _id: t._id,
+      transactionId: t.transactionId,
+      date: t.date,
+      productId: t.productId,
+      productCode: t.productCode,
+      productName: t.productName,
+      type: t.transactionType === 'IN' || t.transactionType === 'PURCHASE' ? 'IN' : 'OUT',
+      transactionType: t.transactionType,
+      quantity: t.quantity,
+      previousQuantity: t.previousQuantity,
+      newQuantity: t.newQuantity,
+      department: t.department,
+      remarks: t.remarks,
+      recordedBy: t.recordedBy,
+      performedBy: t.recordedBy,
+      referenceId: t.referenceId || t.transactionId
+    }));
 
-    const transactions = await historyQuery;
-
-    res.json({
+    return res.json({
       success: true,
-      count: transactions.length,
+      count: formatted.length,
       total,
-      transactions,
-      history: transactions
+      page: pageNum,
+      totalPages: Math.ceil(total / pageSize),
+      limit: pageSize,
+      transactions: formatted,
+      history: formatted,
+      data: formatted
     });
   } catch (error) {
     next(error);

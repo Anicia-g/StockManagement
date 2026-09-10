@@ -1,24 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
-import { productApi } from '../../services/api';
+import { productApi, masterDataApi } from '../../services/api';
 
-const REGISTER_OPTIONS = ['SR1', 'SR2', 'SR3', 'CSSR1'];
-const CATEGORY_OPTIONS = [
+const DEFAULT_REGISTER_OPTIONS = ['SR1', 'SR2', 'SR3', 'CSSR1'];
+const DEFAULT_CATEGORY_OPTIONS = [
   'Lighting',
-  'Electrical',
-  'Appliance',
-  'Switchgear',
   'Wiring',
-  'Consumable',
-  'Tools & Accessories'
+  'Switchgear',
+  'Electrical Accessories',
+  'Appliances',
+  'Consumables'
 ];
+const DEFAULT_UNIT_OPTIONS = ['Pieces', 'Meter', 'Roll', 'Box', 'Coil', 'Set'];
 
 export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
+  const [categories, setCategories] = useState(DEFAULT_CATEGORY_OPTIONS);
+  const [units, setUnits] = useState(DEFAULT_UNIT_OPTIONS);
+  const [registerOptions, setRegisterOptions] = useState(DEFAULT_REGISTER_OPTIONS);
+
   const [formData, setFormData] = useState({
     productCode: '',
     name: '',
-    category: 'Electrical',
+    category: 'Lighting',
     description: '',
     unit: 'Pieces',
     currentQuantity: 10,
@@ -35,8 +39,40 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const [catRes, unitRes, docRes] = await Promise.all([
+          masterDataApi.getCategories().catch(() => ({})),
+          masterDataApi.getUnits().catch(() => ({})),
+          masterDataApi.getStockDocuments().catch(() => ({}))
+        ]);
+
+        if (catRes?.success && catRes.categories?.length > 0) {
+          setCategories(catRes.categories.map(c => c.name));
+          setFormData(prev => ({ ...prev, category: catRes.categories[0].name }));
+        }
+        if (unitRes?.success && unitRes.units?.length > 0) {
+          setUnits(unitRes.units.map(u => u.name));
+          setFormData(prev => ({ ...prev, unit: unitRes.units[0].name }));
+        }
+        if (docRes?.success && docRes.documents?.length > 0) {
+          const docs = docRes.documents.map(d => d.name);
+          setRegisterOptions(docs);
+          setFormData(prev => ({ ...prev, stockRegister: docs[0] }));
+          setRegisterRefs([{ sheet: docs[0], page: 1 }]);
+        }
+      } catch (err) {
+        console.error('Failed to load master data in AddProductModal:', err);
+      }
+    };
+    if (isOpen) {
+      fetchMasterData();
+    }
+  }, [isOpen]);
+
   const handleAddRefRow = () => {
-    setRegisterRefs([...registerRefs, { sheet: 'SR1', page: 1 }]);
+    setRegisterRefs([...registerRefs, { sheet: registerOptions[0] || 'SR1', page: 1 }]);
   };
 
   const handleRemoveRefRow = (index) => {
@@ -74,7 +110,10 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
       const payload = {
         ...formData,
         productCode: formData.productCode.trim().toUpperCase(),
+        productName: formData.name.trim(),
+        name: formData.name.trim(),
         currentQuantity: Number(formData.currentQuantity) || 0,
+        minimumQuantity: Number(formData.minimumStockLevel) || 5,
         minimumStockLevel: Number(formData.minimumStockLevel) || 5,
         pageNumber: Number(formData.pageNumber) || 1,
         registerRefs: validRefs.length > 0 ? validRefs : [{ sheet: formData.stockRegister, page: formData.pageNumber }]
@@ -82,233 +121,296 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
 
       const res = await productApi.createProduct(payload);
       if (res.success) {
-        onProductCreated(res.product);
+        onProductCreated(res.product || res.data);
         // Reset form
         setFormData({
           productCode: '',
           name: '',
-          category: 'Electrical',
+          category: categories[0] || 'Lighting',
           description: '',
-          unit: 'Pieces',
+          unit: units[0] || 'Pieces',
           currentQuantity: 10,
           minimumStockLevel: 5,
-          stockRegister: 'SR1',
+          stockRegister: registerOptions[0] || 'SR1',
           pageNumber: 1,
           initialRemark: ''
         });
-        setRegisterRefs([{ sheet: 'SR1', page: 1 }]);
+        setRegisterRefs([{ sheet: registerOptions[0] || 'SR1', page: 1 }]);
         onClose();
+      } else {
+        setError(res.message || 'Failed to create product.');
       }
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Failed to create product.';
-      setError(msg);
+      setError(
+        err.response?.data?.message || err.message || 'Server error creating product.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add New Electrical Product" maxWidth="640px">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add New Electrical Product"
+      maxWidth="700px"
+    >
+      {error && (
+        <div className="alert-box" style={{ marginBottom: '16px' }}>
+          ⚠ {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
-        {error && (
-          <div className="login-error-box" role="alert">
-            <span>⚠</span>
-            <span>{error}</span>
-          </div>
-        )}
-
         <div className="form-grid">
+          {/* Product Code */}
           <div className="field">
-            <label htmlFor="modal-product-code">Product Code *</label>
+            <label htmlFor="modal-pcode">
+              Product Code <span className="req">*</span>
+            </label>
             <input
               type="text"
-              id="modal-product-code"
-              placeholder="e.g. EL-SW-005"
+              id="modal-pcode"
+              placeholder="e.g. EL-SW-008"
               value={formData.productCode}
-              onChange={(e) => setFormData({ ...formData, productCode: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, productCode: e.target.value })
+              }
               required
             />
           </div>
 
+          {/* Product Name */}
           <div className="field">
-            <label htmlFor="modal-product-name">Product Name *</label>
+            <label htmlFor="modal-pname">
+              Product Name <span className="req">*</span>
+            </label>
             <input
               type="text"
-              id="modal-product-name"
-              placeholder="e.g. 16A Power Socket with Shutter"
+              id="modal-pname"
+              placeholder="e.g. 5-Pin Multi Socket 16A"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               required
             />
           </div>
 
+          {/* Category */}
           <div className="field">
-            <label htmlFor="modal-category">Category</label>
+            <label htmlFor="modal-category">
+              Category <span className="req">*</span>
+            </label>
             <select
               id="modal-category"
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, category: e.target.value })
+              }
+              required
             >
-              {CATEGORY_OPTIONS.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
                 </option>
               ))}
             </select>
           </div>
 
+          {/* Unit of Measurement */}
           <div className="field">
-            <label htmlFor="modal-unit">Unit</label>
-            <input
-              type="text"
-              id="modal-unit"
-              placeholder="e.g. Pieces, Coils, Rolls, Meters"
-              value={formData.unit}
-              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="modal-initial-qty">Current Quantity *</label>
-            <input
-              type="number"
-              id="modal-initial-qty"
-              min="0"
-              value={formData.currentQuantity}
-              onChange={(e) => setFormData({ ...formData, currentQuantity: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="modal-min-stock">Minimum Stock Level *</label>
-            <input
-              type="number"
-              id="modal-min-stock"
-              min="0"
-              value={formData.minimumStockLevel}
-              onChange={(e) => setFormData({ ...formData, minimumStockLevel: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="modal-stock-register">Primary Stock Register *</label>
-            <select
-              id="modal-stock-register"
-              value={formData.stockRegister}
-              onChange={(e) => setFormData({ ...formData, stockRegister: e.target.value })}
-            >
-              {REGISTER_OPTIONS.map((reg) => (
-                <option key={reg} value={reg}>
-                  {reg}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label htmlFor="modal-page-num">Register Page Number</label>
-            <input
-              type="number"
-              id="modal-page-num"
-              min="1"
-              value={formData.pageNumber}
-              onChange={(e) => setFormData({ ...formData, pageNumber: e.target.value })}
-            />
-          </div>
-
-          <div className="full field">
-            <label htmlFor="modal-description">Description (Optional)</label>
-            <input
-              type="text"
-              id="modal-description"
-              placeholder="e.g. 240V 50Hz modular electrical fitting"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            />
-          </div>
-
-          <div className="full" style={{ marginTop: '4px' }}>
-            <label style={{ fontWeight: 600, fontSize: '0.82rem', display: 'block', marginBottom: '8px' }}>
-              Physical Stock Register References (SR1 / SR2 / SR3)
+            <label htmlFor="modal-unit">
+              Unit of Measurement <span className="req">*</span>
             </label>
-            {registerRefs.map((ref, index) => (
-              <div
-                key={index}
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  alignItems: 'center',
-                  marginBottom: '8px'
-                }}
-              >
-                <select
-                  style={{ flex: 1 }}
-                  value={ref.sheet}
-                  onChange={(e) => handleRefChange(index, 'sheet', e.target.value)}
-                  aria-label="Stock Register"
-                >
-                  {REGISTER_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  type="number"
-                  placeholder="Page Number"
-                  style={{ flex: 1 }}
-                  min="1"
-                  value={ref.page}
-                  onChange={(e) => handleRefChange(index, 'page', e.target.value)}
-                  aria-label="Page Number"
-                />
-
-                {registerRefs.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveRefRow(index)}
-                    className="btn-ghost"
-                    style={{ color: 'var(--red-600)', padding: '6px' }}
-                    title="Remove reference"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleAddRefRow}
-              style={{ marginTop: '4px', marginBottom: '10px' }}
+            <select
+              id="modal-unit"
+              value={formData.unit}
+              onChange={(e) =>
+                setFormData({ ...formData, unit: e.target.value })
+              }
+              required
             >
-              + Add Another Register Reference
-            </Button>
+              {units.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="full field">
-            <label htmlFor="modal-initial-remark">Initial Technical Remark / Note</label>
+          {/* Initial Stock Quantity */}
+          <div className="field">
+            <label htmlFor="modal-initqty">
+              Initial Quantity <span className="req">*</span>
+            </label>
+            <input
+              type="number"
+              id="modal-initqty"
+              min="0"
+              placeholder="0"
+              value={formData.currentQuantity}
+              onChange={(e) =>
+                setFormData({ ...formData, currentQuantity: e.target.value })
+              }
+              required
+            />
+          </div>
+
+          {/* Minimum Stock Level */}
+          <div className="field">
+            <label htmlFor="modal-minstock">
+              Minimum Threshold Level <span className="req">*</span>
+            </label>
+            <input
+              type="number"
+              id="modal-minstock"
+              min="0"
+              placeholder="5"
+              value={formData.minimumStockLevel}
+              onChange={(e) =>
+                setFormData({ ...formData, minimumStockLevel: e.target.value })
+              }
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div className="field full">
+            <label htmlFor="modal-desc">Specification / Description</label>
             <textarea
-              id="modal-initial-remark"
-              placeholder="e.g. Initial inventory intake note, rack location, etc."
+              id="modal-desc"
               rows={2}
+              placeholder="Brand, technical ratings, model number..."
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+            />
+          </div>
+
+          {/* Stock Register Document References (SR1, SR2, SR3, CSSR1) */}
+          <div className="field full">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '8px'
+              }}
+            >
+              <label style={{ margin: 0, fontWeight: 'bold' }}>
+                Stock Sheet / Register References (SR Sheet & Page)
+              </label>
+              <button
+                type="button"
+                onClick={handleAddRefRow}
+                className="btn-outline"
+                style={{ fontSize: '12px', padding: '4px 10px' }}
+              >
+                + Add Register Entry
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: 'var(--slate-50)',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)'
+              }}
+            >
+              {registerRefs.map((ref, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    gap: '12px',
+                    alignItems: 'center',
+                    marginBottom: idx < registerRefs.length - 1 ? '8px' : '0'
+                  }}
+                >
+                  <div style={{ flex: '1' }}>
+                    <select
+                      value={ref.sheet}
+                      onChange={(e) =>
+                        handleRefChange(idx, 'sheet', e.target.value)
+                      }
+                      style={{ width: '100%' }}
+                    >
+                      {registerOptions.map((r) => (
+                        <option key={r} value={r}>
+                          {r} Register
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ width: '120px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Page #"
+                      value={ref.page}
+                      onChange={(e) =>
+                        handleRefChange(idx, 'page', e.target.value)
+                      }
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  {registerRefs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRefRow(idx)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--red-600)',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '16px'
+                      }}
+                      title="Remove Reference"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Initial Remark */}
+          <div className="field full">
+            <label htmlFor="modal-remark">Initial Stock Remark (Optional)</label>
+            <input
+              type="text"
+              id="modal-remark"
+              placeholder="e.g. Placed in Rack A-1; inspected by Store Keeper"
               value={formData.initialRemark}
-              onChange={(e) => setFormData({ ...formData, initialRemark: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, initialRemark: e.target.value })
+              }
             />
           </div>
         </div>
 
-        <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
+        {/* Modal Action Buttons */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px solid var(--border-color)'
+          }}
+        >
+          <Button variant="outline" type="button" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={loading}>
-            {loading ? 'Creating Product...' : 'Create Product'}
+            {loading ? 'Saving...' : 'Save Product'}
           </Button>
         </div>
       </form>

@@ -15,26 +15,38 @@ const userSchema = new mongoose.Schema({
   },
   name: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   email: {
     type: String,
     trim: true,
-    lowercase: true
+    lowercase: true,
+    default: ''
   },
   role: {
     type: String,
-    enum: ['ADMIN', 'FACULTY', 'STAFF'],
-    default: 'FACULTY'
+    enum: ['ADMIN', 'STAFF', 'VIEWER', 'FACULTY'],
+    default: 'STAFF',
+    uppercase: true
   },
   department: {
     type: String,
     required: true,
     default: 'Maintenance Dept.'
   },
+  departmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Department',
+    default: null
+  },
   avatarText: {
     type: String,
     default: 'U'
+  },
+  active: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true
@@ -49,6 +61,13 @@ userSchema.pre('save', async function (next) {
 
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Don't return password in JSON
+userSchema.methods.toJSON = function () {
+  const obj = this.toObject();
+  delete obj.password;
+  return obj;
 };
 
 const User = mongoose.model('User', userSchema);

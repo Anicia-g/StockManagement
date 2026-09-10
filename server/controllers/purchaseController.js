@@ -1,6 +1,6 @@
 import Product from '../models/Product.js';
 import Purchase from '../models/Purchase.js';
-import StockHistory from '../models/StockHistory.js';
+import StockTransaction from '../models/StockTransaction.js';
 import Notification from '../models/Notification.js';
 
 // @desc    Get all purchases with optional filtering
@@ -48,7 +48,7 @@ export const getPurchases = async (req, res, next) => {
   }
 };
 
-// @desc    Record a new stock purchase (Admin only)
+// @desc    Record a new stock purchase / incoming stock
 // @route   POST /api/purchases
 export const recordPurchase = async (req, res, next) => {
   try {
@@ -67,18 +67,26 @@ export const recordPurchase = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Valid product and quantity are required.' });
     }
 
-    const product = await Product.findById(productId);
+    let product = null;
+    if (productId.match(/^[0-9a-fA-F]{24}$/)) {
+      product = await Product.findById(productId);
+    }
+    if (!product) {
+      product = await Product.findOne({ productCode: productId.toUpperCase() });
+    }
+
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found.' });
     }
 
     const purchaseCount = await Purchase.countDocuments();
-    const purchaseId = `PUR-2026-${String(purchaseCount + 1).padStart(3, '0')}`;
+    const purchaseId = `PUR-${new Date().getFullYear()}-${String(purchaseCount + 1).padStart(3, '0')}`;
     const previousQuantity = product.currentQuantity;
     const newQuantity = previousQuantity + qty;
 
     // Update product stock
     product.currentQuantity = newQuantity;
+    product.updatedBy = req.user ? req.user.name : 'Admin';
     await product.save();
 
     // Create Purchase record
@@ -86,7 +94,7 @@ export const recordPurchase = async (req, res, next) => {
       purchaseId,
       productId: product._id,
       productCode: product.productCode,
-      productName: product.name,
+      productName: product.productName || product.name,
       stockRegister: product.stockRegister || 'SR1',
       quantity: qty,
       unit: product.unit || 'Pieces',
@@ -99,49 +107,28 @@ export const recordPurchase = async (req, res, next) => {
       remarks: remarks || ''
     });
 
-    // Create StockHistory transaction record (type: PURCHASE)
-    const historyCount = await StockHistory.countDocuments();
-    const transactionId = `TXN-2026-${String(historyCount + 1).padStart(3, '0')}`;
-
-    await StockHistory.create({
-      transactionId,
-      date: date || new Date().toISOString().split('T')[0],
+    // Create StockTransaction entry
+    await StockTransaction.create({
+      transactionId: purchaseId,
+      transactionType: 'IN',
       productId: product._id,
       productCode: product.productCode,
-      productName: product.name,
-      stockRegister: product.stockRegister || 'SR1',
-      type: 'PURCHASE',
+      productName: product.productName || product.name,
       quantity: qty,
       previousQuantity,
       newQuantity,
       department: 'Store',
+      date: date || new Date().toISOString().split('T')[0],
       referenceId: purchaseId,
-      performedBy: req.user ? req.user.name : 'Admin',
-      remarks: remarks || `Purchased from ${supplier || 'Supplier'}`
+      recordedBy: req.user ? req.user.name : 'Admin',
+      remarks: `Purchase (${supplier || 'Supplier'}) - Invoice: ${invoiceNumber || 'N/A'}. ${remarks || ''}`
     });
-
-    // If stock was low and is now healthy, we can notify admin
-    if (previousQuantity <= product.minimumStockLevel && newQuantity > product.minimumStockLevel) {
-      await Notification.create({
-        title: 'Stock Replenished',
-        message: `${product.name} (${product.productCode}) stock replenished to ${newQuantity} ${product.unit}.`,
-        type: 'PURCHASE',
-        targetRole: 'ADMIN',
-        referenceId: product.productCode
-      });
-    }
 
     res.status(201).json({
       success: true,
-      message: `Successfully recorded purchase of ${qty} ${product.unit} for ${product.name}. Stock updated to ${newQuantity}.`,
+      message: `Successfully purchased ${qty} ${product.unit} of ${product.productName || product.name}`,
       purchase,
-      product: {
-        id: product._id,
-        name: product.name,
-        previousQuantity,
-        purchasedQuantity: qty,
-        newQuantity
-      }
+      updatedProduct: product
     });
   } catch (error) {
     next(error);
