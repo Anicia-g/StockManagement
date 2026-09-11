@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
 import { productApi, indentApi, masterDataApi } from '../services/api';
@@ -11,6 +11,7 @@ export const CreateIndent = () => {
   const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [products, setProducts] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -46,14 +47,34 @@ export const CreateIndent = () => {
       try {
         setLoadingProducts(true);
         const [prodRes, deptRes] = await Promise.all([
-          productApi.getProducts({ status: 'ACTIVE' }),
+          productApi.getProducts({ status: 'ACTIVE', limit: 100 }),
           masterDataApi.getDepartments()
         ]);
         if (prodRes?.success) {
-          setProducts(prodRes.products || []);
+          const prods = prodRes.products || [];
+          setProducts(prods);
+
+          // Check if product was passed in URL query param
+          const preselected = searchParams.get('product') || searchParams.get('productId') || searchParams.get('productCode');
+          if (preselected) {
+            const target = prods.find((p) => p._id === preselected || p.productCode === preselected);
+            if (target) {
+              setItems([
+                {
+                  productId: target._id,
+                  productCode: target.productCode,
+                  productName: target.productName || target.name,
+                  stockRegister: target.stockRegister || 'SR1',
+                  unit: target.unit || 'Pieces',
+                  requestedQuantity: 1,
+                  availableStock: target.currentQuantity
+                }
+              ]);
+            }
+          }
         }
         if (deptRes?.success && deptRes.departments?.length > 0) {
-          setDepartments(deptRes.departments.map(d => d.name));
+          setDepartments(deptRes.departments.map((d) => d.name));
           if (!department) {
             setDepartment(user?.department || deptRes.departments[0].name);
           }
@@ -65,7 +86,7 @@ export const CreateIndent = () => {
       }
     };
     loadMasterData();
-  }, [department, user]);
+  }, [department, user, searchParams]);
 
   const handleProductSelect = (index, productId) => {
     const selected = products.find((p) => p._id === productId);
@@ -75,7 +96,7 @@ export const CreateIndent = () => {
         ...updated[index],
         productId: selected._id,
         productCode: selected.productCode,
-        productName: selected.productName,
+        productName: selected.productName || selected.name,
         stockRegister: selected.stockRegister || 'SR1',
         unit: selected.unit || 'Pieces',
         availableStock: selected.currentQuantity
@@ -143,10 +164,18 @@ export const CreateIndent = () => {
       return;
     }
 
+    // Validate requested quantity against available store stock
+    for (const item of items) {
+      if (item.availableStock !== undefined && item.requestedQuantity > item.availableStock) {
+        setError(`Requested quantity (${item.requestedQuantity}) for ${item.productName} exceeds available store stock (${item.availableStock} max).`);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const payload = {
-        department,
+        department: department || user?.department || 'General',
         purpose: purpose.trim(),
         requiredDate,
         remarks: remarks.trim(),
@@ -163,7 +192,11 @@ export const CreateIndent = () => {
       const res = await indentApi.createIndent(payload);
       if (res.success) {
         fetchNotifications();
-        navigate(`/indents/${res.indent._id || res.indent.indentNumber}`);
+        navigate('/indents', {
+          state: {
+            successMessage: 'Indent submitted successfully.'
+          }
+        });
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to submit indent request.';
@@ -182,11 +215,18 @@ export const CreateIndent = () => {
   }
 
   return (
-    <Layout>
-      <div className="topbar">
-        <div className="topbar-title">
-          <h1>Create Material Indent</h1>
-          <p>Submit an institutional requisition for lab consumables, components, or electrical equipment.</p>
+    <Layout
+      title="Create Material Indent"
+      breadcrumb="Submit a material requisition for required consumables."
+    >
+      <div className="section" style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ fontSize: '1.25rem', marginBottom: '2px' }}>Create Material Indent</h1>
+            <p style={{ color: 'var(--text-500)', margin: 0, fontSize: '0.84rem' }}>
+              Submit a material requisition for required consumables.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -214,8 +254,7 @@ export const CreateIndent = () => {
         >
           <span style={{ fontSize: '1.2rem' }}>ℹ</span>
           <span>
-            <strong>Online Indent Notice:</strong> Creating an indent registers an official requisition.
-            Warehouse inventory will <strong>not</strong> be deducted until an Administrator reviews and issues the items.
+            <strong>Requisition Notice:</strong> Submitting an indent creates a requisition for Admin review. Physical issue of approved items is handled offline.
           </span>
         </div>
 

@@ -122,7 +122,7 @@ export const approveIndent = async (indentId, { approvedBy, approvals, remarks }
   const indent = await Indent.findById(indentId);
   if (!indent) throw new Error('Indent not found.');
 
-  indent.approvedBy = approvedBy || user?.name || 'Store Superintendent';
+  indent.approvedBy = approvedBy || user?.name || 'Admin';
   indent.approvedAt = new Date();
   if (remarks) indent.adminRemarks = remarks;
 

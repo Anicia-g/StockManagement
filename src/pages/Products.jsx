@@ -121,7 +121,7 @@ export const Products = () => {
 
   const handleDeleteProduct = async (product) => {
     const confirmed = window.confirm(
-      `Are you sure you want to delete or deactivate product "${product.productName || product.name}" (${product.productCode})?`
+      `Are you sure you want to delete product "${product.productName || product.name}" (${product.productCode})?`
     );
     if (!confirmed) return;
 
@@ -129,11 +129,11 @@ export const Products = () => {
       const res = await productApi.deleteProduct(product._id || product.id);
       if (res.success) {
         setFeedback({
-          type: 'success',
-          message: res.message || 'Product removed successfully.'
+          type: res.deactivated ? 'info' : 'success',
+          message: res.message || (res.deactivated ? 'Product deactivated to protect historical records.' : 'Product deleted successfully.')
         });
         fetchProducts();
-        setTimeout(() => setFeedback(null), 5000);
+        setTimeout(() => setFeedback(null), 6000);
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to delete product.';

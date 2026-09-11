@@ -1,17 +1,17 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AuthProvider } from '../context/AuthContext';
 import { StockProvider } from '../context/StockContext';
 import { NotificationProvider } from '../context/NotificationContext';
 import FacultyCatalog from '../pages/FacultyCatalog';
-import { productApi, indentApi, masterDataApi } from '../services/api';
+import { productApi, masterDataApi } from '../services/api';
 
 vi.mock('../services/api', () => ({
   authApi: {
-    getMe: vi.fn().mockResolvedValue({ success: true, user: { role: 'FACULTY' } })
+    getMe: vi.fn().mockResolvedValue({ success: true, user: { role: 'FACULTY', department: 'Electrical & Electronics Engineering' } })
   },
   productApi: {
     getProducts: vi.fn().mockResolvedValue({
@@ -54,11 +54,7 @@ vi.mock('../services/api', () => ({
     })
   },
   indentApi: {
-    createIndent: vi.fn().mockResolvedValue({
-      success: true,
-      message: 'Requisition IND-2026-009 submitted to MongoDB.',
-      indent: { indentNumber: 'IND-2026-009' }
-    })
+    createIndent: vi.fn()
   },
   notificationApi: {
     getNotifications: vi.fn().mockResolvedValue({ success: true, unreadCount: 0, notifications: [] }),
@@ -84,7 +80,10 @@ const renderCatalog = () => {
       <AuthProvider>
         <NotificationProvider>
           <StockProvider>
-            <FacultyCatalog />
+            <Routes>
+              <Route path="/faculty/catalog" element={<FacultyCatalog />} />
+              <Route path="/indents/create" element={<div data-testid="create-indent-page">Create Indent Target</div>} />
+            </Routes>
           </StockProvider>
         </NotificationProvider>
       </AuthProvider>
@@ -92,7 +91,7 @@ const renderCatalog = () => {
   );
 };
 
-describe('Faculty Catalog & Direct Requisition Workflow', () => {
+describe('Faculty Catalog & Direct Indent Requisition Workflow', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.clearAllMocks();
@@ -108,30 +107,22 @@ describe('Faculty Catalog & Direct Requisition Workflow', () => {
     expect(screen.getAllByText('Out of Stock').length).toBeGreaterThan(0);
   });
 
-  it('Opens Request / Book modal and submits requisition to MongoDB API', async () => {
+  it('Has clean "Request" button on available products and routes to /indents/create', async () => {
     renderCatalog();
 
-    const bookButtons = await screen.findAllByRole('button', { name: /Request \/ Book/i });
-    expect(bookButtons.length).toBeGreaterThan(0);
-    fireEvent.click(bookButtons[0]);
+    // Verify there are NO old booking buttons
+    expect(screen.queryByRole('button', { name: /Request \/ Book/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Book/i })).not.toBeInTheDocument();
 
-    // Check modal opens
-    expect(screen.getByText(/Request Item: Ceiling Fan 1200mm/i)).toBeInTheDocument();
+    // Verify clean "Request" button
+    const requestButtons = await screen.findAllByRole('button', { name: /^Request$/i });
+    expect(requestButtons.length).toBe(1);
 
-    // Fill purpose
-    const purposeInput = screen.getByLabelText(/Purpose \/ Utilization Reason/i);
-    fireEvent.change(purposeInput, { target: { value: 'Machines Lab II experimental bench setup' } });
-
-    // Submit request
-    const submitBtn = screen.getByRole('button', { name: /Submit Request/i });
-    fireEvent.click(submitBtn);
+    // Clicking "Request" directs user to /indents/create with product query param
+    fireEvent.click(requestButtons[0]);
 
     await waitFor(() => {
-      expect(indentApi.createIndent).toHaveBeenCalledTimes(1);
-      expect(indentApi.createIndent).toHaveBeenCalledWith(expect.objectContaining({
-        department: 'Electrical & Electronics Engineering',
-        purpose: 'Machines Lab II experimental bench setup'
-      }));
+      expect(screen.getByTestId('create-indent-page')).toBeInTheDocument();
     });
   });
 });

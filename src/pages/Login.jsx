@@ -134,7 +134,7 @@ export const Login = () => {
         </form>
 
         <div className="login-foot">
-          Role-Based Access Control · Store Admin & Department Indents
+          Role-Based Access Control · Admin & Faculty Indents
         </div>
       </div>
     </div>

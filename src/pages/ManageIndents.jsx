@@ -68,7 +68,7 @@ export const ManageIndents = () => {
   return (
     <Layout
       title="Manage Indent Requests"
-      breadcrumb="Store Administration / Indent Requisitions"
+      breadcrumb="Admin / Indent Requisitions"
     >
       <div className="section" style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>

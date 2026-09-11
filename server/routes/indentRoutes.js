@@ -9,7 +9,8 @@ import {
   approveIndent,
   rejectIndent,
   issueIndent,
-  reviewIndent
+  reviewIndent,
+  completeIndent
 } from '../controllers/indentController.js';
 import { protect, requireAdmin, requireStaffOrAdmin } from '../middleware/auth.js';
 
@@ -25,6 +26,7 @@ router.post('/:id/submit', protect, requireStaffOrAdmin, submitIndent);
 router.post('/:id/recommend', protect, requireStaffOrAdmin, recommendIndent);
 router.post('/:id/approve', protect, requireAdmin, approveIndent);
 router.post('/:id/reject', protect, requireAdmin, rejectIndent);
+router.post('/:id/complete', protect, requireAdmin, completeIndent);
 router.post('/:id/issue', protect, requireAdmin, issueIndent);
 router.post('/:id/review', protect, requireAdmin, reviewIndent);
 router.put('/:id/review', protect, requireAdmin, reviewIndent);

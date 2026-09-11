@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import IndentTable from '../components/indents/IndentTable';
 import IndentApprovalModal from '../components/indents/IndentApprovalModal';
@@ -10,6 +10,7 @@ import Pagination from '../components/common/Pagination';
 
 export const Indents = () => {
   const { isAdmin } = useAuth();
+  const location = useLocation();
   const [indents, setIndents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -17,6 +18,16 @@ export const Indents = () => {
   const [selectedIndentForReview, setSelectedIndentForReview] = useState(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState('');
+
+  // Read flash message from create redirect
+  useEffect(() => {
+    if (location.state?.successMessage) {
+      setActionSuccessMessage(location.state.successMessage);
+      window.history.replaceState({}, document.title);
+      const timer = setTimeout(() => setActionSuccessMessage(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -71,7 +82,7 @@ export const Indents = () => {
   return (
     <Layout
       title={isAdmin ? 'Online Indent Requests' : 'My Indent Requests'}
-      breadcrumb={isAdmin ? 'Store Management / Indent Approvals' : 'Department Portal / My Material Requests'}
+      breadcrumb={isAdmin ? 'Admin / Indent Approvals' : 'Track the status of your submitted material requisitions.'}
     >
       <div className="section" style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -81,8 +92,8 @@ export const Indents = () => {
             </h1>
             <p style={{ color: 'var(--text-500)', margin: 0, fontSize: '0.84rem' }}>
               {isAdmin
-                ? 'Review faculty material requisitions, approve stock allocations, and issue transfers.'
-                : 'Track the status of your departmental material requisitions in real time.'}
+                ? 'Review faculty material requisitions and approve stock allocations.'
+                : 'Track the status of your submitted material requisitions.'}
             </p>
           </div>
           {!isAdmin && (

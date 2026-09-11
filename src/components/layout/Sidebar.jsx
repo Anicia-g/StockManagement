@@ -56,13 +56,13 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
           {/* FACULTY SECTION */}
           {!isAdmin && (
             <>
-              <div className="nav-label">Catalog & Requisitions</div>
+              <div className="nav-label">Catalog & Requests</div>
               <NavLink
-                to="/products"
+                to="/faculty/catalog"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">▦</span> Products
+                <span className="icon">▦</span> Product Catalog
               </NavLink>
 
               <NavLink
@@ -70,7 +70,7 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">📋</span> Manage Indents
+                <span className="icon">📋</span> My Indent Requests
               </NavLink>
 
               <NavLink
