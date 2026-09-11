@@ -7,12 +7,12 @@ import { useNotifications } from '../../context/NotificationContext';
 export const PurchaseForm = ({ onPurchaseCompleted = null }) => {
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState(50);
-  const [supplier, setSupplier] = useState('Sri Balaji Electricals');
-  const [invoiceNumber, setInvoiceNumber] = useState('INV-4432');
-  const [unitPrice, setUnitPrice] = useState(85);
+  const [quantity, setQuantity] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [remarks, setRemarks] = useState('Quarterly stock purchase & replenishment');
+  const [remarks, setRemarks] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(false);
 

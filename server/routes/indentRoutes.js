@@ -27,5 +27,6 @@ router.post('/:id/approve', protect, requireAdmin, approveIndent);
 router.post('/:id/reject', protect, requireAdmin, rejectIndent);
 router.post('/:id/issue', protect, requireAdmin, issueIndent);
 router.post('/:id/review', protect, requireAdmin, reviewIndent);
+router.put('/:id/review', protect, requireAdmin, reviewIndent);
 
 export default router;

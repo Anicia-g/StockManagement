@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
-import { productApi, indentApi } from '../services/api';
+import { productApi, indentApi, masterDataApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import Loading from '../components/common/Loading';
@@ -13,12 +13,13 @@ export const CreateIndent = () => {
   const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   // Form state
-  const [department, setDepartment] = useState(user?.department || 'CSE Department');
+  const [department, setDepartment] = useState(user?.department || '');
   const [purpose, setPurpose] = useState('');
   const [requiredDate, setRequiredDate] = useState(() => {
     const d = new Date();
@@ -41,21 +42,30 @@ export const CreateIndent = () => {
   ]);
 
   useEffect(() => {
-    const loadProducts = async () => {
+    const loadMasterData = async () => {
       try {
         setLoadingProducts(true);
-        const res = await productApi.getProducts();
-        if (res.success) {
-          setProducts(res.products || []);
+        const [prodRes, deptRes] = await Promise.all([
+          productApi.getProducts({ status: 'ACTIVE' }),
+          masterDataApi.getDepartments()
+        ]);
+        if (prodRes?.success) {
+          setProducts(prodRes.products || []);
+        }
+        if (deptRes?.success && deptRes.departments?.length > 0) {
+          setDepartments(deptRes.departments.map(d => d.name));
+          if (!department) {
+            setDepartment(user?.department || deptRes.departments[0].name);
+          }
         }
       } catch (err) {
-        console.error('Failed to load products for indent:', err);
+        console.error('Failed to load products/departments for indent:', err);
       } finally {
         setLoadingProducts(false);
       }
     };
-    loadProducts();
-  }, []);
+    loadMasterData();
+  }, [department, user]);
 
   const handleProductSelect = (index, productId) => {
     const selected = products.find((p) => p._id === productId);
@@ -205,7 +215,7 @@ export const CreateIndent = () => {
           <span style={{ fontSize: '1.2rem' }}>ℹ</span>
           <span>
             <strong>Online Indent Notice:</strong> Creating an indent registers an official requisition.
-            Warehouse inventory will <strong>not</strong> be deducted until Store Admin reviews and approves the transfer.
+            Warehouse inventory will <strong>not</strong> be deducted until an Administrator reviews and issues the items.
           </span>
         </div>
 
@@ -228,13 +238,10 @@ export const CreateIndent = () => {
                   onChange={(e) => setDepartment(e.target.value)}
                   required
                 >
-                  <option value="CSE Department">CSE Department</option>
-                  <option value="EEE Department">EEE Department</option>
-                  <option value="ECE Department">ECE Department</option>
-                  <option value="Mechanical Department">Mechanical Department</option>
-                  <option value="Civil Department">Civil Department</option>
-                  <option value="IT Department">IT Department</option>
-                  <option value="General Maintenance">General Maintenance</option>
+                  <option value="">-- Select Department --</option>
+                  {departments.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
                 </select>
               </div>
 

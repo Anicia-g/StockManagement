@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/layout/Layout';
 import TransferForm from '../components/stock/TransferForm';
-import { transferApi } from '../services/api';
+import { transferApi, masterDataApi } from '../services/api';
 import Loading from '../components/common/Loading';
 import EmptyState from '../components/common/EmptyState';
 import Pagination from '../components/common/Pagination';
 
 export const Transfer = () => {
   const [transfers, setTransfers] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -17,6 +18,20 @@ export const Transfer = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+
+  useEffect(() => {
+    const loadDepartments = async () => {
+      try {
+        const res = await masterDataApi.getDepartments();
+        if (res.success && res.departments) {
+          setDepartments(res.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load departments for transfer list:', err);
+      }
+    };
+    loadDepartments();
+  }, []);
 
   const fetchTransfers = useCallback(async () => {
     try {
@@ -182,13 +197,11 @@ export const Transfer = () => {
                 }}
               >
                 <option value="">All Departments</option>
-                <option value="CSE Department">CSE Department</option>
-                <option value="EEE Department">EEE Department</option>
-                <option value="ECE Department">ECE Department</option>
-                <option value="Mechanical Department">Mechanical Department</option>
-                <option value="Civil Department">Civil Department</option>
-                <option value="IT Department">IT Department</option>
-                <option value="General Maintenance">General Maintenance</option>
+                {departments.map((d) => (
+                  <option key={d._id || d.name} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

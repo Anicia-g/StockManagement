@@ -8,18 +8,17 @@ export const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [username, setUsername] = useState('e.ramesh');
-  const [password, setPassword] = useState('password123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const from = location.state?.from?.pathname || '/dashboard';
-
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(from, { replace: true });
+      const target = location.state?.from?.pathname || (user?.role === 'ADMIN' ? '/admin/dashboard' : '/faculty/dashboard');
+      navigate(target, { replace: true });
     }
-  }, [isAuthenticated, navigate, from]);
+  }, [isAuthenticated, user, navigate, location]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,11 +30,12 @@ export const Login = () => {
     }
 
     setLoading(true);
-    const res = await login(username, password);
+    const res = await login(username.trim(), password);
     setLoading(false);
 
     if (res.success) {
-      navigate(from, { replace: true });
+      const target = location.state?.from?.pathname || (res.user?.role === 'ADMIN' ? '/admin/dashboard' : '/faculty/dashboard');
+      navigate(target, { replace: true });
     } else {
       setError(res.error || 'Invalid credentials');
     }
@@ -51,32 +51,32 @@ export const Login = () => {
     <div className="login-page">
       <div className="login-card">
         <div className="login-mark" aria-hidden="true">
-          ⚡
+          📦
         </div>
-        <h1>Electrical Stock Monitoring System</h1>
+        <h1>Consumable Stock Management System</h1>
         <p className="login-sub">
-          National Engineering College — Maintenance Department
+          Central Consumable Store & Inventory Record Maintenance
         </p>
 
         {/* Quick Demo Access Buttons */}
         <div className="login-hint-box">
-          <div style={{ fontWeight: 700, marginBottom: '6px' }}>Quick Demo Login:</div>
+          <div style={{ fontWeight: 700, marginBottom: '6px' }}>Quick Login:</div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
               className="btn-secondary btn-sm"
-              onClick={() => handleQuickFill('e.ramesh', 'password123')}
+              onClick={() => handleQuickFill('admin', 'admin123')}
               style={{ flex: 1, fontSize: '0.74rem' }}
             >
-              🔑 Store Admin (E. Ramesh)
+              🔑 Admin
             </button>
             <button
               type="button"
               className="btn-outline btn-sm"
-              onClick={() => handleQuickFill('cse.faculty', 'faculty123')}
+              onClick={() => handleQuickFill('faculty', 'faculty123')}
               style={{ flex: 1, fontSize: '0.74rem' }}
             >
-              👤 CSE Faculty (Dr. Saravanan)
+              👤 Faculty
             </button>
           </div>
         </div>

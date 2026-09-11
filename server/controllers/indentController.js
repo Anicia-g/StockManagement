@@ -13,37 +13,48 @@ import {
 export const getIndents = async (req, res, next) => {
   try {
     const { status, department, search, page, limit } = req.query;
-    let query = {};
+    const conditions = [];
 
-    // Role filtering: Non-admins can only see their department unless viewer
+    // Role filtering: Faculty sees only their own or their department's indents
     if (req.user && req.user.role === 'FACULTY') {
-      query.$or = [
-        { requesterId: req.user._id },
-        { department: req.user.department },
-        { requestingDepartment: req.user.department }
-      ];
+      conditions.push({
+        $or: [
+          { requesterId: req.user._id },
+          { requestedBy: { $regex: req.user.name, $options: 'i' } },
+          { department: req.user.department },
+          { requestingDepartment: req.user.department }
+        ]
+      });
     }
 
     if (status && status !== 'ALL') {
-      query.status = status;
+      conditions.push({ status });
     }
 
     if (department && department !== 'ALL') {
-      query.$or = [
-        { department: { $regex: department, $options: 'i' } },
-        { requestingDepartment: { $regex: department, $options: 'i' } }
-      ];
+      conditions.push({
+        $or: [
+          { department: { $regex: department, $options: 'i' } },
+          { requestingDepartment: { $regex: department, $options: 'i' } }
+        ]
+      });
     }
 
     if (search) {
-      query.$or = [
-        { indentNumber: { $regex: search, $options: 'i' } },
-        { purpose: { $regex: search, $options: 'i' } },
-        { requestedBy: { $regex: search, $options: 'i' } },
-        { requesterName: { $regex: search, $options: 'i' } },
-        { department: { $regex: search, $options: 'i' } }
-      ];
+      conditions.push({
+        $or: [
+          { indentNumber: { $regex: search, $options: 'i' } },
+          { purpose: { $regex: search, $options: 'i' } },
+          { requestedBy: { $regex: search, $options: 'i' } },
+          { requesterName: { $regex: search, $options: 'i' } },
+          { department: { $regex: search, $options: 'i' } },
+          { 'items.productName': { $regex: search, $options: 'i' } },
+          { 'items.productCode': { $regex: search, $options: 'i' } }
+        ]
+      });
     }
+
+    const query = conditions.length > 0 ? { $and: conditions } : {};
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.max(1, parseInt(limit) || 50);

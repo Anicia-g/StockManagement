@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Navigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import ProductTable from '../components/products/ProductTable';
 import AddProductModal from '../components/products/AddProductModal';
@@ -7,25 +8,20 @@ import SearchBar from '../components/common/SearchBar';
 import Button from '../components/common/Button';
 import Loading from '../components/common/Loading';
 import Pagination from '../components/common/Pagination';
-import { productApi } from '../services/api';
+import { productApi, masterDataApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const REGISTER_FILTERS = ['ALL', 'SR1', 'SR2', 'SR3', 'CSSR1'];
-const CATEGORY_FILTERS = [
-  'ALL',
-  'Lighting',
-  'Electrical',
-  'Appliance',
-  'Switchgear',
-  'Wiring',
-  'Consumable',
-  'Tools & Accessories'
-];
-
 export const Products = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isFaculty } = useAuth();
+
+  // If Faculty attempts to access Admin Products page, redirect to Faculty Catalog
+  if (isFaculty && !isAdmin) {
+    return <Navigate to="/faculty/catalog" replace />;
+  }
 
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [registers, setRegisters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -41,6 +37,27 @@ export const Products = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [feedback, setFeedback] = useState(null);
+
+  // Fetch dynamic categories and register documents from MongoDB
+  useEffect(() => {
+    const loadMasterFilters = async () => {
+      try {
+        const [catRes, docRes] = await Promise.all([
+          masterDataApi.getCategories(),
+          masterDataApi.getStockDocuments()
+        ]);
+        if (catRes?.success && catRes.categories?.length > 0) {
+          setCategories(catRes.categories.map(c => c.name));
+        }
+        if (docRes?.success && docRes.documents?.length > 0) {
+          setRegisters(docRes.documents.map(d => d.name));
+        }
+      } catch (err) {
+        console.error('Failed to load master filters:', err);
+      }
+    };
+    loadMasterFilters();
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -83,8 +100,9 @@ export const Products = () => {
     fetchProducts();
     setFeedback({
       type: 'success',
-      message: `Product "${newProd.name}" (${newProd.productCode}) created successfully!`
+      message: `Product "${newProd.productName || newProd.name}" (${newProd.productCode}) created successfully in MongoDB!`
     });
+    setTimeout(() => setFeedback(null), 5000);
   };
 
   const handleEditClick = (product) => {
@@ -96,35 +114,38 @@ export const Products = () => {
     fetchProducts();
     setFeedback({
       type: 'success',
-      message: `Product "${updatedProd.name}" updated successfully!`
+      message: `Product "${updatedProd.productName || updatedProd.name}" updated successfully in MongoDB!`
     });
+    setTimeout(() => setFeedback(null), 5000);
   };
 
   const handleDeleteProduct = async (product) => {
     const confirmed = window.confirm(
-      `Are you sure you want to delete product "${product.name}" (${product.productCode})?`
+      `Are you sure you want to delete or deactivate product "${product.productName || product.name}" (${product.productCode})?`
     );
     if (!confirmed) return;
 
     try {
       const res = await productApi.deleteProduct(product._id || product.id);
       if (res.success) {
-        fetchProducts();
         setFeedback({
           type: 'success',
-          message: res.message
+          message: res.message || 'Product removed successfully.'
         });
+        fetchProducts();
+        setTimeout(() => setFeedback(null), 5000);
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to delete product.';
       setFeedback({ type: 'error', message: msg });
+      setTimeout(() => setFeedback(null), 5000);
     }
   };
 
   return (
     <Layout
-      title={isAdmin ? 'Product Inventory Management' : 'Available Electrical Products'}
-      breadcrumb={isAdmin ? 'Inventory / Product CRUD' : 'Store Catalog / Stock Availability'}
+      title="Product Inventory Management"
+      breadcrumb="Central Store / Live MongoDB Products CRUD"
     >
       {feedback && (
         <div
@@ -156,8 +177,8 @@ export const Products = () => {
             }}
             aria-label="Stock Register Filter"
           >
-            <option value="ALL">All Stock Registers</option>
-            {REGISTER_FILTERS.filter((r) => r !== 'ALL').map((reg) => (
+            <option value="ALL">All Registers</option>
+            {registers.map((reg) => (
               <option key={reg} value={reg}>
                 {reg} Register
               </option>
@@ -176,9 +197,10 @@ export const Products = () => {
             }}
             aria-label="Category Filter"
           >
-            {CATEGORY_FILTERS.map((cat) => (
+            <option value="ALL">All Categories</option>
+            {categories.map((cat) => (
               <option key={cat} value={cat}>
-                {cat === 'ALL' ? 'All Categories' : cat}
+                {cat}
               </option>
             ))}
           </select>
@@ -196,8 +218,8 @@ export const Products = () => {
             aria-label="Status Filter"
           >
             <option value="ALL">All Statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="ACTIVE">Active Only</option>
+            <option value="INACTIVE">Inactive Only</option>
           </select>
         </div>
 
@@ -214,7 +236,7 @@ export const Products = () => {
 
       <div className="card">
         {loading && products.length === 0 ? (
-          <Loading message="Loading inventory items..." />
+          <Loading message="Loading inventory items from MongoDB..." />
         ) : (
           <>
             <ProductTable

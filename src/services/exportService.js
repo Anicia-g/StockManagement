@@ -16,8 +16,8 @@ export const exportToExcel = (data, fileName = 'Report', title = 'Stock Report')
 
   // Create heading rows
   const headerInfo = [
-    ['NATIONAL ENGINEERING COLLEGE - MAINTENANCE DEPARTMENT'],
-    ['Electrical Stock Monitoring & Management System'],
+    ['CENTRAL STORE & INVENTORY RECORD'],
+    ['Consumable Stock Management System'],
     [title.toUpperCase()],
     [`Generated Date: ${new Date().toLocaleString()}`],
     [] // blank row
@@ -53,11 +53,11 @@ export const exportToPDF = (data, columns, fileName = 'Report', title = 'Stock R
   // Header styling
   doc.setFontSize(14);
   doc.setTextColor(11, 37, 69); // Navy 900
-  doc.text('NATIONAL ENGINEERING COLLEGE', 14, 15);
+  doc.text('CENTRAL CONSUMABLE STORE', 14, 15);
 
   doc.setFontSize(10);
   doc.setTextColor(60, 74, 92);
-  doc.text('Electrical Stock Monitoring & Management System — Maintenance Division', 14, 21);
+  doc.text('Consumable Stock Management System — Official Stock Ledger', 14, 21);
 
   doc.setFontSize(12);
   doc.setTextColor(20, 80, 140);

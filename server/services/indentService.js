@@ -2,6 +2,7 @@ import Indent from '../models/Indent.js';
 import Product from '../models/Product.js';
 import Notification from '../models/Notification.js';
 import { recordOutgoing } from './stockService.js';
+import { generateIndentNumber } from '../utils/codeGenerator.js';
 
 export const createIndent = async ({
   indentNumber,
@@ -14,7 +15,7 @@ export const createIndent = async ({
   user
 }) => {
   const dept = requestingDepartment || department || user?.department || 'Maintenance Dept.';
-  const genIndentNumber = indentNumber || `IND-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const genIndentNumber = indentNumber || await generateIndentNumber();
 
   // Process items
   const processedItems = [];
@@ -147,9 +148,10 @@ export const approveIndent = async (indentId, { approvedBy, approvals, remarks }
 
   await Notification.create({
     title: 'Indent Approved',
-    message: `Indent ${indent.indentNumber} has been approved and is ready for stock issue.`,
+    message: `Indent ${indent.indentNumber} has been approved by Admin.`,
     type: 'INDENT_STATUS',
-    targetRole: 'STAFF',
+    targetRole: 'FACULTY',
+    targetUserId: indent.requesterId || null,
     referenceId: indent.indentNumber
   }).catch(e => console.error(e));
 
@@ -163,6 +165,15 @@ export const rejectIndent = async (indentId, { remarks }, user) => {
   indent.status = 'REJECTED';
   if (remarks) indent.adminRemarks = remarks;
   await indent.save();
+
+  await Notification.create({
+    title: 'Indent Rejected',
+    message: `Indent ${indent.indentNumber} was rejected.${remarks ? ` Remarks: ${remarks}` : ''}`,
+    type: 'INDENT_STATUS',
+    targetRole: 'FACULTY',
+    targetUserId: indent.requesterId || null,
+    referenceId: indent.indentNumber
+  }).catch(e => console.error(e));
 
   return indent;
 };

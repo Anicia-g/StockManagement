@@ -11,14 +11,18 @@ const generateToken = (id) => {
 export const loginUser = async (req, res, next) => {
   try {
     const { username, password } = req.body;
-
+    console.log(`AUTH LOGIN ATTEMPT: ${username}`);
     if (!username || !password) {
       return res.status(400).json({ success: false, message: 'Please provide username and password' });
     }
 
     const user = await User.findOne({ username: username.toLowerCase() });
+    console.log(`AUTH USER FOUND: ${!!user}`);
+    const passwordMatch = user && await user.comparePassword(password);
+    console.log(`AUTH PASSWORD MATCH: ${passwordMatch}`);
 
-    if (user && (await user.comparePassword(password))) {
+    if (user && passwordMatch && user.active) {
+      console.log(`AUTH USER ACTIVE: ${user.active}`);
       res.json({
         success: true,
         token: generateToken(user._id),

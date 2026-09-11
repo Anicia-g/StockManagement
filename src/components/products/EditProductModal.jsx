@@ -1,24 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
-import { productApi } from '../../services/api';
-
-const REGISTER_OPTIONS = ['SR1', 'SR2', 'SR3', 'CSSR1'];
-const CATEGORY_OPTIONS = [
-  'Lighting',
-  'Electrical',
-  'Appliance',
-  'Switchgear',
-  'Wiring',
-  'Consumable',
-  'Tools & Accessories'
-];
+import { productApi, masterDataApi } from '../../services/api';
 
 export const EditProductModal = ({ isOpen, onClose, product, onProductUpdated }) => {
+  const [categories, setCategories] = useState([]);
+  const [registerOptions, setRegisterOptions] = useState([]);
+
   const [formData, setFormData] = useState({
     productCode: '',
     name: '',
-    category: 'Electrical',
+    category: '',
     description: '',
     unit: 'Pieces',
     currentQuantity: 0,
@@ -33,18 +25,40 @@ export const EditProductModal = ({ isOpen, onClose, product, onProductUpdated })
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const loadMasterData = async () => {
+      try {
+        const [catRes, docRes] = await Promise.all([
+          masterDataApi.getCategories(),
+          masterDataApi.getStockDocuments()
+        ]);
+        if (catRes?.success && catRes.categories?.length > 0) {
+          setCategories(catRes.categories.map(c => c.name));
+        }
+        if (docRes?.success && docRes.documents?.length > 0) {
+          setRegisterOptions(docRes.documents.map(d => d.name));
+        }
+      } catch (e) {
+        console.error('Failed to load master data in EditProductModal:', e);
+      }
+    };
+    if (isOpen) {
+      loadMasterData();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (product) {
       setFormData({
         productCode: product.productCode || '',
-        name: product.name || '',
-        category: product.category || 'Electrical',
+        name: product.name || product.productName || '',
+        category: product.category || '',
         description: product.description || '',
         unit: product.unit || 'Pieces',
         currentQuantity: product.currentQuantity !== undefined ? product.currentQuantity : 0,
-        minimumStockLevel: product.minimumStockLevel !== undefined ? product.minimumStockLevel : 5,
+        minimumStockLevel: product.minimumStockLevel !== undefined ? product.minimumStockLevel : (product.minimumQuantity || 5),
         stockRegister: product.stockRegister || 'SR1',
         pageNumber: product.pageNumber || 1,
-        status: product.status || 'ACTIVE'
+        status: product.status || (product.active === false ? 'INACTIVE' : 'ACTIVE')
       });
 
       if (product.registerRefs && product.registerRefs.length > 0) {
@@ -154,7 +168,7 @@ export const EditProductModal = ({ isOpen, onClose, product, onProductUpdated })
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
             >
-              {CATEGORY_OPTIONS.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -204,7 +218,7 @@ export const EditProductModal = ({ isOpen, onClose, product, onProductUpdated })
               value={formData.stockRegister}
               onChange={(e) => setFormData({ ...formData, stockRegister: e.target.value })}
             >
-              {REGISTER_OPTIONS.map((reg) => (
+              {registerOptions.map((reg) => (
                 <option key={reg} value={reg}>
                   {reg}
                 </option>

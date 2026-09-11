@@ -50,36 +50,68 @@ export const authApi = {
 };
 
 export const masterDataApi = {
-  getDepartments: async () => {
-    const res = await api.get('/departments');
+  getDepartments: async (params = {}) => {
+    const res = await api.get('/departments', { params });
     return res.data;
   },
   createDepartment: async (data) => {
     const res = await api.post('/departments', data);
     return res.data;
   },
-  getCategories: async () => {
-    const res = await api.get('/categories');
+  updateDepartment: async (id, data) => {
+    const res = await api.put(`/departments/${id}`, data);
+    return res.data;
+  },
+  deleteDepartment: async (id) => {
+    const res = await api.delete(`/departments/${id}`);
+    return res.data;
+  },
+  getCategories: async (params = {}) => {
+    const res = await api.get('/categories', { params });
     return res.data;
   },
   createCategory: async (data) => {
     const res = await api.post('/categories', data);
     return res.data;
   },
-  getUnits: async () => {
-    const res = await api.get('/units');
+  updateCategory: async (id, data) => {
+    const res = await api.put(`/categories/${id}`, data);
+    return res.data;
+  },
+  deleteCategory: async (id) => {
+    const res = await api.delete(`/categories/${id}`);
+    return res.data;
+  },
+  getUnits: async (params = {}) => {
+    const res = await api.get('/units', { params });
     return res.data;
   },
   createUnit: async (data) => {
     const res = await api.post('/units', data);
     return res.data;
   },
-  getStockDocuments: async () => {
-    const res = await api.get('/stock-documents');
+  updateUnit: async (id, data) => {
+    const res = await api.put(`/units/${id}`, data);
+    return res.data;
+  },
+  deleteUnit: async (id) => {
+    const res = await api.delete(`/units/${id}`);
+    return res.data;
+  },
+  getStockDocuments: async (params = {}) => {
+    const res = await api.get('/stock-documents', { params });
     return res.data;
   },
   createStockDocument: async (data) => {
     const res = await api.post('/stock-documents', data);
+    return res.data;
+  },
+  updateStockDocument: async (id, data) => {
+    const res = await api.put(`/stock-documents/${id}`, data);
+    return res.data;
+  },
+  deleteStockDocument: async (id) => {
+    const res = await api.delete(`/stock-documents/${id}`);
     return res.data;
   }
 };

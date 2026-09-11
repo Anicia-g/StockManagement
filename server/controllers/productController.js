@@ -3,6 +3,8 @@ import ProductDocumentReference from '../models/ProductDocumentReference.js';
 import StockDocument from '../models/StockDocument.js';
 import StockTransaction from '../models/StockTransaction.js';
 import ProductRemark from '../models/ProductRemark.js';
+import Indent from '../models/Indent.js';
+import { generateProductCode } from '../utils/codeGenerator.js';
 
 // @desc    Get all products with search & filter
 // @route   GET /api/products
@@ -31,7 +33,9 @@ export const getProducts = async (req, res, next) => {
       ];
     }
 
-    if (status && status !== 'ALL') {
+    if (req.user && req.user.role === 'FACULTY') {
+      query.active = true;
+    } else if (status && status !== 'ALL') {
       if (status === 'ACTIVE') {
         query.active = true;
       } else if (status === 'INACTIVE') {
@@ -39,7 +43,10 @@ export const getProducts = async (req, res, next) => {
       } else {
         query.status = status;
       }
+    } else if (!status) {
+      query.active = true;
     }
+
 
     let products = await Product.find(query).sort({ productName: 1, name: 1 });
 
@@ -215,12 +222,12 @@ export const createProduct = async (req, res, next) => {
       initialRemark
     } = req.body;
 
-    const resolvedCode = (productCode || '').trim().toUpperCase();
+    let resolvedCode = (productCode || '').trim().toUpperCase();
+    if (!resolvedCode) {
+      resolvedCode = await generateProductCode();
+    }
     const resolvedName = (productName || name || '').trim();
 
-    if (!resolvedCode) {
-      return res.status(400).json({ success: false, message: 'Product code is required.' });
-    }
     if (!resolvedName) {
       return res.status(400).json({ success: false, message: 'Product name is required.' });
     }
@@ -422,7 +429,7 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
-// @desc    Soft delete / deactivate product
+// @desc    Delete or deactivate product
 // @route   DELETE /api/products/:id
 export const deleteProduct = async (req, res, next) => {
   try {
@@ -434,7 +441,26 @@ export const deleteProduct = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found.' });
     }
 
-    // Soft delete
+    const hasTransactions = await StockTransaction.exists({
+      $or: [{ productId: product._id }, { productCode: product.productCode }]
+    });
+    const hasIndents = await Indent.exists({ 'items.productId': product._id });
+
+    if (!hasTransactions && !hasIndents) {
+      // Safe to fully remove document and references
+      await ProductDocumentReference.deleteMany({ productId: product._id });
+      await ProductRemark.deleteMany({ productId: product._id });
+      await Product.findByIdAndDelete(product._id);
+
+      return res.json({
+        success: true,
+        message: `Product "${product.productName || product.name}" (${product.productCode}) removed completely from database.`,
+        deleted: true,
+        product
+      });
+    }
+
+    // Historical transactions or indents exist: deactivate to maintain historical integrity
     product.active = false;
     product.status = 'INACTIVE';
     product.updatedBy = req.user?.name || 'Admin';
@@ -442,7 +468,8 @@ export const deleteProduct = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: `Product "${product.productName || product.name}" (${product.productCode}) deactivated successfully.`,
+      message: `Product "${product.productName || product.name}" (${product.productCode}) deactivated successfully to protect historical records.`,
+      deleted: false,
       product
     });
   } catch (error) {

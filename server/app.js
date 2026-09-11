@@ -45,6 +45,8 @@ app.get('/api/dashboard', protect, getDashboardStats);
 
 // Compatibility & Analytics Routes
 app.use('/api/history', stockHistoryRoutes);
+app.use('/api/stock-history', stockHistoryRoutes);
+app.use('/api/stock-transactions', stockHistoryRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/transfers', transferRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -56,7 +58,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     status: 'OK',
-    message: 'Electrical Stock Monitoring System Backend Active',
+    message: 'Consumable Stock Management System Backend Active',
     timestamp: new Date().toISOString()
   });
 });

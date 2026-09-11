@@ -60,7 +60,7 @@ const productSchema = new mongoose.Schema({
   },
   stockRegister: {
     type: String,
-    enum: ['SR1', 'SR2', 'SR3', 'CSSR1'],
+    trim: true,
     default: 'SR1'
   },
   pageNumber: {
@@ -71,8 +71,8 @@ const productSchema = new mongoose.Schema({
     {
       sheet: {
         type: String,
-        enum: ['SR1', 'SR2', 'SR3', 'CSSR1'],
-        required: true
+        required: true,
+        trim: true
       },
       page: {
         type: Number,

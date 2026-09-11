@@ -2,6 +2,7 @@ import Product from '../models/Product.js';
 import Transfer from '../models/Transfer.js';
 import StockTransaction from '../models/StockTransaction.js';
 import Notification from '../models/Notification.js';
+import { generateTransferNumber } from '../utils/codeGenerator.js';
 
 // @desc    Get all transfers with optional filtering
 // @route   GET /api/transfers
@@ -92,8 +93,7 @@ export const issueTransfer = async (req, res, next) => {
       });
     }
 
-    const transferCount = await Transfer.countDocuments();
-    const transferId = `TRF-${new Date().getFullYear()}-${String(transferCount + 1).padStart(3, '0')}`;
+    const transferId = await generateTransferNumber();
     const previousQuantity = product.currentQuantity;
     const newQuantity = previousQuantity - qty;
 

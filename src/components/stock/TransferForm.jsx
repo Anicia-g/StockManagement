@@ -1,48 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../common/Button';
-import { productApi, transferApi } from '../../services/api';
+import { productApi, transferApi, masterDataApi } from '../../services/api';
 import { useNotifications } from '../../context/NotificationContext';
-
-const DEPARTMENTS = [
-  'Computer Science & Engineering',
-  'Electrical & Electronics Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Information Technology',
-  'Electronics & Communication Engineering',
-  'Administrative Office',
-  'Hostel Office',
-  'Library',
-  'Physical Education'
-];
 
 export const TransferForm = ({ onTransferCompleted = null }) => {
   const [products, setProducts] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState(2);
-  const [department, setDepartment] = useState(DEPARTMENTS[0]);
+  const [quantity, setQuantity] = useState('');
+  const [department, setDepartment] = useState('');
   const [indentNumber, setIndentNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [remarks, setRemarks] = useState('Department replacement & maintenance');
+  const [remarks, setRemarks] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const { fetchNotifications } = useNotifications();
 
   useEffect(() => {
-    const loadProducts = async () => {
+    const loadInitialData = async () => {
       try {
-        const res = await productApi.getProducts();
-        if (res.success && res.products.length > 0) {
-          setProducts(res.products);
-          setSelectedProductId(res.products[0]._id);
+        const [prodRes, deptRes] = await Promise.all([
+          productApi.getProducts(),
+          masterDataApi.getDepartments()
+        ]);
+        if (prodRes.success && prodRes.products.length > 0) {
+          setProducts(prodRes.products);
+          setSelectedProductId(prodRes.products[0]._id);
+        }
+        if (deptRes.success && deptRes.departments?.length > 0) {
+          setDepartments(deptRes.departments);
+          setDepartment(deptRes.departments[0].name);
         }
       } catch (err) {
-        console.error('Failed to load products for transfer:', err);
+        console.error('Failed to load products/departments for transfer:', err);
       }
     };
-    loadProducts();
+    loadInitialData();
   }, []);
 
   const selectedProduct = products.find((p) => p._id === selectedProductId);
@@ -189,9 +184,9 @@ export const TransferForm = ({ onTransferCompleted = null }) => {
                 onChange={(e) => setDepartment(e.target.value)}
                 required
               >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                {departments.map((d) => (
+                  <option key={d._id || d.name || d} value={d.name || d}>
+                    {d.name || d}
                   </option>
                 ))}
               </select>

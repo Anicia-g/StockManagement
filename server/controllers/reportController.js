@@ -11,24 +11,51 @@ export const getReportData = async (req, res, next) => {
     const { reportType, startDate, endDate, category, register, department } = req.query;
 
     let data = [];
-    let title = 'Electrical Stock Report';
+    let title = 'Consumable Stock Report';
 
     switch (reportType) {
+      case 'LOW_STOCK': {
+        title = 'Low Stock & Reorder Alert Report';
+        let query = { active: { $ne: false } };
+        if (category && category !== 'ALL') query.category = category;
+        if (register && register !== 'ALL') query.stockRegister = register;
+        const prods = await Product.find(query).sort({ name: 1 });
+        const lowProds = prods.filter(p => {
+          const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
+          return (Number(p.currentQuantity) || 0) <= min;
+        });
+        data = lowProds.map(p => {
+          const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
+          return {
+            productCode: p.productCode,
+            name: p.productName || p.name,
+            category: p.category,
+            currentQuantity: p.currentQuantity,
+            minimumStockLevel: min,
+            unit: p.unit,
+            stockRegister: p.stockRegister || 'SR1',
+            deficit: Math.max(0, min - p.currentQuantity),
+            status: p.currentQuantity === 0 ? 'Out of Stock' : 'Low Stock'
+          };
+        });
+        break;
+      }
+
       case 'PRODUCT': {
         title = 'Product Stock Inventory Report';
-        let query = {};
+        let query = { active: { $ne: false } };
         if (category && category !== 'ALL') query.category = category;
         if (register && register !== 'ALL') query.stockRegister = register;
         const prods = await Product.find(query).sort({ name: 1 });
         data = prods.map(p => ({
           productCode: p.productCode,
-          name: p.name,
+          name: p.productName || p.name,
           category: p.category,
           currentQuantity: p.currentQuantity,
-          minimumStockLevel: p.minimumStockLevel,
+          minimumStockLevel: p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel,
           unit: p.unit,
           stockRegister: p.stockRegister || 'SR1',
-          status: p.currentQuantity <= p.minimumStockLevel ? 'Low Stock' : 'Available'
+          status: p.currentQuantity <= (p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel) ? 'Low Stock' : 'Available'
         }));
         break;
       }
@@ -84,7 +111,7 @@ export const getReportData = async (req, res, next) => {
           requester: i.requesterName,
           department: i.department,
           itemsCount: i.items.length,
-          itemSummary: i.items.map(it => `${it.productName} (Req: ${it.requestedQuantity}, Appr: ${it.approvedQuantity})`).join('; '),
+          itemSummary: i.items.map(it => `${it.productName} (Req: ${it.requestedQuantity}, Appr: ${it.approvedQuantity || 0})`).join('; '),
           status: i.status
         }));
         break;
@@ -119,7 +146,7 @@ export const getReportData = async (req, res, next) => {
       success: true,
       title,
       generatedAt: new Date().toISOString(),
-      institution: 'National Engineering College — Maintenance Department',
+      institution: 'Consumable Stock Management System',
       count: data.length,
       data
     });

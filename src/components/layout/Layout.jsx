@@ -1,17 +1,28 @@
-import React from "react";
+import React, { useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
-export const Layout = ({ children, title, breadcrumb }) => {
+export const Layout = ({ children, title = "Dashboard", breadcrumb = "Overview" }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="app-shell">
-      <Sidebar />
+      <Sidebar
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+      />
       <div className="main-col">
-        <Topbar title={title} breadcrumb={breadcrumb} />
+        <Topbar
+          title={title}
+          breadcrumb={breadcrumb}
+          onToggleMobile={() => setMobileMenuOpen(prev => !prev)}
+        />
         <main className="content">
-          {children}
-          <div className="footer-note">
-            Electrical Stock Monitoring System · Maintenance Department · National Engineering College
+          <div className="main-container">
+            {children}
+            <div className="footer-note">
+              Consumable Stock Management System · Central Store Record Maintenance
+            </div>
           </div>
         </main>
       </div>

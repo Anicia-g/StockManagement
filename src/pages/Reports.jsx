@@ -1,13 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
-import { reportApi } from '../services/api';
+import { reportApi, masterDataApi } from '../services/api';
 import { exportToExcel, exportToPDF } from '../services/exportService';
 import Loading from '../components/common/Loading';
 import EmptyState from '../components/common/EmptyState';
 import Pagination from '../components/common/Pagination';
 
 const REPORT_COLUMNS = {
+  LOW_STOCK: [
+    { header: 'Product Code', dataKey: 'productCode' },
+    { header: 'Product Name', dataKey: 'name' },
+    { header: 'Category', dataKey: 'category' },
+    { header: 'Stock Register', dataKey: 'stockRegister' },
+    { header: 'Current Stock', dataKey: 'currentQuantity' },
+    { header: 'Min Stock Level', dataKey: 'minimumStockLevel' },
+    { header: 'Deficit Qty', dataKey: 'deficit' },
+    { header: 'Unit', dataKey: 'unit' },
+    { header: 'Status', dataKey: 'status' }
+  ],
   PRODUCT: [
     { header: 'Product Code', dataKey: 'productCode' },
     { header: 'Product Name', dataKey: 'name' },
@@ -71,6 +82,11 @@ export const Reports = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Dynamic filter options from DB
+  const [availableRegisters, setAvailableRegisters] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableDepartments, setAvailableDepartments] = useState([]);
+
   // Filters
   const [register, setRegister] = useState('');
   const [category, setCategory] = useState('');
@@ -78,28 +94,55 @@ export const Reports = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Pagination for Preview table
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(15);
+
+  // Load master data filter options from DB
+  useEffect(() => {
+    const loadFilters = async () => {
+      try {
+        const [regRes, catRes, deptRes] = await Promise.all([
+          masterDataApi.getStockDocuments(),
+          masterDataApi.getCategories(),
+          masterDataApi.getDepartments()
+        ]);
+        if (regRes.success && (regRes.documents || regRes.data)) {
+          setAvailableRegisters(regRes.documents || regRes.data || []);
+        }
+        if (catRes.success && (catRes.categories || catRes.data)) {
+          setAvailableCategories(catRes.categories || catRes.data || []);
+        }
+        if (deptRes.success && (deptRes.departments || deptRes.data)) {
+          setAvailableDepartments(deptRes.departments || deptRes.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load master filters for reports:', err);
+      }
+    };
+    loadFilters();
+  }, []);
 
   const fetchReport = useCallback(async () => {
     try {
       setLoading(true);
-      const params = { reportType };
-      if (register) params.register = register;
-      if (category) params.category = category;
-      if (department) params.department = department;
+      const params = {
+        reportType,
+        register: register || 'ALL',
+        category: category || 'ALL',
+        department: department || 'ALL'
+      };
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
       const res = await reportApi.getReportData(params);
       if (res.success) {
         setData(res.data || []);
-        setReportTitle(res.title || 'Stock Report');
+        setReportTitle(res.title || `${reportType} Report`);
         setCurrentPage(1);
       }
     } catch (err) {
-      console.error('Failed to generate report:', err);
+      console.error('Failed to fetch report data:', err);
     } finally {
       setLoading(false);
     }
@@ -110,49 +153,54 @@ export const Reports = () => {
   }, [fetchReport]);
 
   const handleExportExcel = () => {
-    exportToExcel(data, `Stock_${reportType}_Report`, reportTitle);
+    const filename = `${reportType.toLowerCase()}_report_${new Date().toISOString().split('T')[0]}`;
+    exportToExcel(data, REPORT_COLUMNS[reportType], filename, reportTitle);
   };
 
   const handleExportPDF = () => {
-    const columns = REPORT_COLUMNS[reportType] || REPORT_COLUMNS.PRODUCT;
-    exportToPDF(data, columns, `Stock_${reportType}_Report`, reportTitle);
+    const filename = `${reportType.toLowerCase()}_report_${new Date().toISOString().split('T')[0]}`;
+    exportToPDF(data, REPORT_COLUMNS[reportType], filename, reportTitle);
   };
 
-  const currentColumns = REPORT_COLUMNS[reportType] || REPORT_COLUMNS.PRODUCT;
-
-  // Pagination slice for live preview
-  const totalItems = data.length;
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedData = data.slice(startIndex, startIndex + pageSize);
+  const columns = REPORT_COLUMNS[reportType] || [];
+  const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <Layout>
-      <div className="topbar">
-        <div className="topbar-title">
-          <h1>Institutional Stock Reports</h1>
-          <p>Generate, preview, and export formal stock ledgers, audit registers, and department requisition reports.</p>
-        </div>
-        <div className="topbar-actions">
-          <Button variant="outline" onClick={handleExportExcel} disabled={data.length === 0}>
-            📊 Export to Excel (.xlsx)
-          </Button>
-          <Button variant="primary" onClick={handleExportPDF} disabled={data.length === 0}>
-            📄 Download Official PDF (.pdf)
-          </Button>
+    <Layout
+      title="Institutional Stock Reports"
+      breadcrumb="Store Reports / Export & Audits"
+    >
+      <div className="section" style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ fontSize: '1.25rem', marginBottom: '2px' }}>Consumable Stock Reports</h1>
+            <p style={{ color: 'var(--text-500)', margin: 0, fontSize: '0.84rem' }}>
+              Preview and export official inventory balances, low-stock deficit lists, and movement audits.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Button variant="outline" onClick={handleExportExcel} disabled={data.length === 0}>
+              📊 Export to Excel (.xlsx)
+            </Button>
+            <Button variant="primary" onClick={handleExportPDF} disabled={data.length === 0}>
+              📄 Download Official PDF (.pdf)
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="content-area">
         {/* Report configuration card */}
-        <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card" style={{ marginBottom: '20px' }}>
           <div className="card-head">
             <span className="card-title">Report Parameters & Data Scope</span>
           </div>
           <div className="card-body">
             {/* Report Type selector tabs */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
               {[
                 { id: 'PRODUCT', label: '📦 Master Product Inventory' },
+                { id: 'LOW_STOCK', label: '⚠️ Low Stock & Deficit Alerts' },
                 { id: 'PURCHASE', label: '↧ Purchases & Procurement' },
                 { id: 'TRANSFER', label: '↥ Department Transfers / Issues' },
                 { id: 'INDENT', label: '▧ Online Indent Requisitions' },
@@ -192,25 +240,25 @@ export const Reports = () => {
               <div className="field">
                 <label>Stock Register</label>
                 <select value={register} onChange={(e) => setRegister(e.target.value)}>
-                  <option value="">All Registers (SR1-3)</option>
-                  <option value="SR1">SR1</option>
-                  <option value="SR2">SR2</option>
-                  <option value="SR3">SR3</option>
-                  <option value="CSSR1">CSSR1</option>
+                  <option value="">All Registers</option>
+                  {availableRegisters.map((reg) => (
+                    <option key={reg._id || reg.name} value={reg.name}>
+                      {reg.name} {reg.description ? `(${reg.description})` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {reportType === 'PRODUCT' && (
+              {(reportType === 'PRODUCT' || reportType === 'LOW_STOCK') && (
                 <div className="field">
                   <label>Product Category</label>
                   <select value={category} onChange={(e) => setCategory(e.target.value)}>
                     <option value="">All Categories</option>
-                    <option value="Lighting">Lighting</option>
-                    <option value="Cables & Wires">Cables & Wires</option>
-                    <option value="Wiring Accessories">Wiring Accessories</option>
-                    <option value="Protection Devices">Protection Devices</option>
-                    <option value="Tools">Tools</option>
-                    <option value="Motors & Fans">Motors & Fans</option>
+                    {availableCategories.map((cat) => (
+                      <option key={cat._id || cat.name} value={cat.name}>
+                        {cat.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -220,18 +268,16 @@ export const Reports = () => {
                   <label>Department</label>
                   <select value={department} onChange={(e) => setDepartment(e.target.value)}>
                     <option value="">All Departments</option>
-                    <option value="CSE">CSE Department</option>
-                    <option value="EEE">EEE Department</option>
-                    <option value="ECE">ECE Department</option>
-                    <option value="Mechanical">Mechanical Department</option>
-                    <option value="Civil">Civil Department</option>
-                    <option value="IT">IT Department</option>
-                    <option value="General Maintenance">General Maintenance</option>
+                    {availableDepartments.map((dept) => (
+                      <option key={dept._id || dept.name} value={dept.name}>
+                        {dept.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}
 
-              {reportType !== 'PRODUCT' && (
+              {(reportType === 'PURCHASE' || reportType === 'TRANSFER' || reportType === 'INDENT' || reportType === 'HISTORY') && (
                 <>
                   <div className="field">
                     <label>Start Date</label>
@@ -256,80 +302,93 @@ export const Reports = () => {
           </div>
         </div>
 
-        {/* Report Preview */}
+        {/* Report Preview Table */}
         <div className="card">
-          <div className="card-head" style={{ flexWrap: 'wrap', gap: '12px' }}>
+          <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <span className="card-title">{reportTitle} Preview</span>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                National Engineering College — Maintenance Division · Generated on{' '}
-                {new Date().toLocaleDateString()}
-              </div>
+              <span className="card-title">{reportTitle}</span>
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
+                ({data.length} records matching criteria)
+              </span>
             </div>
-            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--blue-700)' }}>
-              {totalItems} Total Records Found
-            </span>
+            <Button variant="ghost" onClick={fetchReport} style={{ fontSize: '0.78rem' }}>
+              ↻ Refresh Data
+            </Button>
           </div>
 
           <div className="card-body" style={{ padding: 0 }}>
             {loading ? (
-              <Loading message="Generating structured report preview..." />
-            ) : totalItems === 0 ? (
-              <EmptyState
-                icon="📄"
-                title="No records found"
-                description="No transactions or products match the selected report scope."
-              />
-            ) : (
-              <>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        {currentColumns.map((col, idx) => (
-                          <th key={idx}>{col.header}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedData.map((row, rIdx) => (
-                        <tr key={rIdx}>
-                          {currentColumns.map((col, cIdx) => {
-                            const val = row[col.dataKey];
-                            const isCode =
-                              col.dataKey.toLowerCase().includes('code') ||
-                              col.dataKey.toLowerCase().includes('id') ||
-                              col.dataKey.toLowerCase().includes('number');
-                            const isRegister = col.dataKey === 'stockRegister';
-
-                            return (
-                              <td key={cIdx} className={isCode ? 'code' : ''}>
-                                {isRegister ? (
-                                  <span className="badge badge-blue">{val || 'SR1'}</span>
-                                ) : val !== undefined && val !== null ? (
-                                  String(val)
-                                ) : (
-                                  '—'
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
+              <div style={{ padding: '40px' }}>
+                <Loading message="Generating report from MongoDB Atlas records..." />
+              </div>
+            ) : data.length === 0 ? (
+              <div style={{ padding: '40px' }}>
+                <EmptyState
+                  title="No Records Found"
+                  message="There are no records matching your selected parameters and date filters."
                 />
-              </>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px' }}>#</th>
+                      {columns.map((col) => (
+                        <th key={col.dataKey}>{col.header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedData.map((row, idx) => (
+                      <tr key={idx}>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>
+                          {(currentPage - 1) * pageSize + idx + 1}
+                        </td>
+                        {columns.map((col) => {
+                          const val = row[col.dataKey];
+                          const isCode = col.dataKey.toLowerCase().includes('code') || col.dataKey.toLowerCase().includes('id');
+                          const isStatus = col.dataKey.toLowerCase() === 'status';
+
+                          return (
+                            <td key={col.dataKey}>
+                              {isCode ? (
+                                <span className="code">{val || '—'}</span>
+                              ) : isStatus ? (
+                                <span
+                                  className={`badge ${
+                                    val === 'Available' || val === 'APPROVED' || val === 'ISSUED'
+                                      ? 'badge-green'
+                                      : val === 'Low Stock' || val === 'Out of Stock' || val === 'REJECTED'
+                                      ? 'badge-red'
+                                      : 'badge-amber'
+                                  }`}
+                                >
+                                  {val || '—'}
+                                </span>
+                              ) : (
+                                val ?? '—'
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
+
+          {data.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={data.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </div>
       </div>
     </Layout>
