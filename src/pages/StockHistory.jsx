@@ -19,6 +19,7 @@ export const StockHistory = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  const [counts, setCounts] = useState({ totalPurchases: 0, totalTransfers: 0 });
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -37,6 +38,10 @@ export const StockHistory = () => {
       if (res.success) {
         setHistory(res.history || res.transactions || []);
         setTotalItems(res.total !== undefined ? res.total : (res.count || res.history?.length || 0));
+        setCounts({
+          totalPurchases: res.totalPurchases !== undefined ? res.totalPurchases : (res.history?.filter(h => h.type === 'PURCHASE').length || 0),
+          totalTransfers: res.totalTransfers !== undefined ? res.totalTransfers : (res.history?.filter(h => h.type === 'TRANSFER').length || 0)
+        });
       }
     } catch (err) {
       console.error('Failed to fetch stock history:', err);
@@ -69,15 +74,12 @@ export const StockHistory = () => {
     startDate !== '' ||
     endDate !== '';
 
-  const totalPurchases = history.filter((h) => h.type === 'PURCHASE').length;
-  const totalTransfers = history.filter((h) => h.type === 'TRANSFER').length;
-
   return (
     <Layout>
       <div className="topbar">
         <div className="topbar-title">
-          <h1>Stock Audit History</h1>
-          <p>Comprehensive ledger of all incoming purchases and outgoing departmental transfers.</p>
+          <h1>Stock History</h1>
+          <p>Comprehensive ledger of all recorded purchases and departmental transfers.</p>
         </div>
       </div>
 
@@ -90,18 +92,18 @@ export const StockHistory = () => {
             <div className="metric-sub">Matching current filters</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Purchases on Page</div>
+            <div className="metric-label">Total Purchases</div>
             <div className="metric-value" style={{ color: 'var(--green-700)' }}>
-              {totalPurchases}
+              {counts.totalPurchases}
             </div>
-            <div className="metric-sub">Stock replenishments</div>
+            <div className="metric-sub">Recorded stock purchases</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Transfers on Page</div>
-            <div className="metric-value" style={{ color: 'var(--amber-700)' }}>
-              {totalTransfers}
+            <div className="metric-label">Total Transfers</div>
+            <div className="metric-value" style={{ color: 'var(--blue-700)' }}>
+              {counts.totalTransfers}
             </div>
-            <div className="metric-sub">Department issues</div>
+            <div className="metric-sub">Departmental stock transfers</div>
           </div>
         </div>
 
@@ -133,9 +135,9 @@ export const StockHistory = () => {
                   fontSize: '0.84rem'
                 }}
               >
-                <option value="">All Types (IN & OUT)</option>
-                <option value="PURCHASE">PURCHASE (Stock IN)</option>
-                <option value="TRANSFER">TRANSFER (Stock OUT)</option>
+                <option value="">All Movement Types</option>
+                <option value="PURCHASE">Purchase</option>
+                <option value="TRANSFER">Transfer</option>
               </select>
 
               <select
@@ -202,14 +204,14 @@ export const StockHistory = () => {
         {/* History Table */}
         <div className="card">
           <div className="card-head">
-            <span className="card-title">Movement Log Ledger</span>
+            <span className="card-title">Stock Movement Log</span>
             <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
               Showing {history.length} of {totalItems} records
             </span>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {loading && history.length === 0 ? (
-              <Loading message="Loading audit history..." />
+              <Loading message="Loading stock history..." />
             ) : (
               <>
                 <StockHistoryTable transactions={history} />

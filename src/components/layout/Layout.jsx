@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import ErrorBoundary from "../common/ErrorBoundary";
 
 export const Layout = ({ children, title = "Dashboard", breadcrumb = "Overview" }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -19,7 +20,9 @@ export const Layout = ({ children, title = "Dashboard", breadcrumb = "Overview" 
         />
         <main className="content">
           <div className="main-container">
-            {children}
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
             <div className="footer-note">
               Consumable Stock Management System · Central Store Record Maintenance
             </div>

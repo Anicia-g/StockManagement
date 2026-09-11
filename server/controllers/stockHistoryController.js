@@ -4,7 +4,7 @@ import StockTransaction from '../models/StockTransaction.js';
 // @route   GET /api/history
 export const getStockHistory = async (req, res, next) => {
   try {
-    const { type, transactionType, department, date, fromDate, toDate, search, register, page, limit } = req.query;
+    const { type, transactionType, department, date, fromDate, toDate, search, register, stockRegister, page, limit } = req.query;
     let query = {};
 
     const resolvedType = transactionType || type;
@@ -16,6 +16,11 @@ export const getStockHistory = async (req, res, next) => {
       } else {
         query.transactionType = resolvedType;
       }
+    }
+
+    const resolvedRegister = register || stockRegister;
+    if (resolvedRegister && resolvedRegister !== 'ALL') {
+      query.stockRegister = resolvedRegister;
     }
 
     if (department && department !== 'ALL') {
@@ -42,7 +47,12 @@ export const getStockHistory = async (req, res, next) => {
       ];
     }
 
-    const total = await StockTransaction.countDocuments(query);
+    const [total, totalPurchases, totalTransfers] = await Promise.all([
+      StockTransaction.countDocuments(query),
+      StockTransaction.countDocuments({ ...query, transactionType: { $in: ['PURCHASE', 'IN'] } }),
+      StockTransaction.countDocuments({ ...query, transactionType: { $in: ['TRANSFER', 'OUT'] } })
+    ]);
+
     let historyQuery = StockTransaction.find(query).sort({ createdAt: -1, date: -1 });
 
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -50,30 +60,37 @@ export const getStockHistory = async (req, res, next) => {
     historyQuery = historyQuery.skip((pageNum - 1) * pageSize).limit(pageSize);
     const rawTransactions = await historyQuery;
 
-    const formatted = rawTransactions.map(t => ({
-      id: t._id,
-      _id: t._id,
-      transactionId: t.transactionId,
-      date: t.date,
-      productId: t.productId,
-      productCode: t.productCode,
-      productName: t.productName,
-      type: t.transactionType === 'IN' || t.transactionType === 'PURCHASE' ? 'IN' : 'OUT',
-      transactionType: t.transactionType,
-      quantity: t.quantity,
-      previousQuantity: t.previousQuantity,
-      newQuantity: t.newQuantity,
-      department: t.department,
-      remarks: t.remarks,
-      recordedBy: t.recordedBy,
-      performedBy: t.recordedBy,
-      referenceId: t.referenceId || t.transactionId
-    }));
+    const formatted = rawTransactions.map(t => {
+      const isPurchase = t.transactionType === 'IN' || t.transactionType === 'PURCHASE';
+      return {
+        id: t._id,
+        _id: t._id,
+        transactionId: t.transactionId,
+        date: t.date,
+        productId: t.productId,
+        productCode: t.productCode,
+        productName: t.productName,
+        stockRegister: t.stockRegister || 'SR1',
+        type: isPurchase ? 'PURCHASE' : 'TRANSFER',
+        transactionType: isPurchase ? 'PURCHASE' : 'TRANSFER',
+        typeLabel: isPurchase ? 'Purchase' : 'Transfer',
+        quantity: Math.abs(t.quantity || 0),
+        previousQuantity: t.previousQuantity,
+        newQuantity: t.newQuantity,
+        department: t.department || 'Store',
+        remarks: t.remarks || '',
+        recordedBy: t.recordedBy || 'Admin',
+        performedBy: t.recordedBy || 'Admin',
+        referenceId: t.referenceId || t.transactionId
+      };
+    });
 
     return res.json({
       success: true,
       count: formatted.length,
       total,
+      totalPurchases,
+      totalTransfers,
       page: pageNum,
       totalPages: Math.ceil(total / pageSize),
       limit: pageSize,

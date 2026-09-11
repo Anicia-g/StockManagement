@@ -3,6 +3,7 @@ import Transfer from '../models/Transfer.js';
 import StockTransaction from '../models/StockTransaction.js';
 import Notification from '../models/Notification.js';
 import { generateTransferNumber } from '../utils/codeGenerator.js';
+import { syncProductLowStockNotification } from '../services/stockService.js';
 
 // @desc    Get all transfers with optional filtering
 // @route   GET /api/transfers
@@ -119,13 +120,14 @@ export const issueTransfer = async (req, res, next) => {
       remarks: remarks || ''
     });
 
-    // Create StockTransaction entry
+    // Create StockTransaction entry with TRANSFER transaction type
     await StockTransaction.create({
       transactionId: transferId,
-      transactionType: 'OUT',
+      transactionType: 'TRANSFER',
       productId: product._id,
       productCode: product.productCode,
       productName: product.productName || product.name,
+      stockRegister: product.stockRegister || 'SR1',
       quantity: qty,
       previousQuantity,
       newQuantity,
@@ -136,22 +138,26 @@ export const issueTransfer = async (req, res, next) => {
       remarks: `Stock Issue to ${department.trim()}. ${remarks || ''}`
     });
 
-    const minStock = product.minimumQuantity !== undefined ? product.minimumQuantity : product.minimumStockLevel;
-    if (newQuantity <= minStock) {
-      await Notification.create({
-        title: 'Low Stock Alert',
-        message: `Product "${product.productName || product.name}" (${product.productCode}) is down to ${newQuantity} ${product.unit} (Minimum: ${minStock}).`,
-        type: 'LOW_STOCK',
-        targetRole: 'ADMIN',
-        referenceId: product.productCode
-      }).catch(err => console.error(err));
-    }
+    // Synchronize low-stock notification state (create single active alert or update existing)
+    await syncProductLowStockNotification(product);
 
     res.status(201).json({
       success: true,
-      message: `Successfully transferred ${qty} ${product.unit} to ${department}`,
+      message: `Successfully transferred ${qty} ${product.unit} to ${department.trim()}`,
+      data: {
+        transfer,
+        product,
+        updatedProduct: product,
+        quantity: qty,
+        department: department.trim(),
+        productName: product.productName || product.name
+      },
       transfer,
-      updatedProduct: product
+      product,
+      updatedProduct: product,
+      quantity: qty,
+      department: department.trim(),
+      productName: product.productName || product.name
     });
   } catch (error) {
     next(error);

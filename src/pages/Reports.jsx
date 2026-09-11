@@ -36,9 +36,9 @@ const REPORT_COLUMNS = {
     { header: 'Product Code', dataKey: 'productCode' },
     { header: 'Product Name', dataKey: 'productName' },
     { header: 'Stock Register', dataKey: 'stockRegister' },
-    { header: 'Quantity In', dataKey: 'quantity' },
+    { header: 'Quantity', dataKey: 'quantity' },
     { header: 'Supplier / Vendor', dataKey: 'supplier' },
-    { header: 'Received By', dataKey: 'recordedBy' }
+    { header: 'Recorded By', dataKey: 'recordedBy' }
   ],
   TRANSFER: [
     { header: 'Transfer ID', dataKey: 'transferId' },
@@ -47,7 +47,7 @@ const REPORT_COLUMNS = {
     { header: 'Product Code', dataKey: 'productCode' },
     { header: 'Product Name', dataKey: 'productName' },
     { header: 'Stock Register', dataKey: 'stockRegister' },
-    { header: 'Qty Issued', dataKey: 'quantity' },
+    { header: 'Quantity', dataKey: 'quantity' },
     { header: 'Indent Ref', dataKey: 'indentNumber' },
     { header: 'Issued By', dataKey: 'issuedBy' }
   ],
@@ -168,14 +168,14 @@ export const Reports = () => {
   return (
     <Layout
       title="Institutional Stock Reports"
-      breadcrumb="Store Reports / Export & Audits"
+      breadcrumb="Reports / Export"
     >
       <div className="section" style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h1 style={{ fontSize: '1.25rem', marginBottom: '2px' }}>Consumable Stock Reports</h1>
             <p style={{ color: 'var(--text-500)', margin: 0, fontSize: '0.84rem' }}>
-              Preview and export official inventory balances, low-stock deficit lists, and movement audits.
+              Preview and export official inventory balances, low-stock deficit lists, and movement history.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -201,10 +201,10 @@ export const Reports = () => {
               {[
                 { id: 'PRODUCT', label: '📦 Master Product Inventory' },
                 { id: 'LOW_STOCK', label: '⚠️ Low Stock & Deficit Alerts' },
-                { id: 'PURCHASE', label: '↧ Purchases & Procurement' },
-                { id: 'TRANSFER', label: '↥ Department Transfers / Issues' },
-                { id: 'INDENT', label: '▧ Online Indent Requisitions' },
-                { id: 'HISTORY', label: '≣ Complete Movement Audit' }
+                { id: 'PURCHASE', label: '↧ Purchases' },
+                { id: 'TRANSFER', label: '↥ Department Transfers' },
+                { id: 'INDENT', label: '📋 Indent Requisitions' },
+                { id: 'HISTORY', label: '≣ Movement History' }
               ].map((tab) => (
                 <button
                   key={tab.id}

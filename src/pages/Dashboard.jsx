@@ -199,63 +199,71 @@ export const Dashboard = () => {
   // ADMIN DASHBOARD VIEW
   // ==========================================
   const totalProducts = stats.totalProducts || 0;
+  const totalCategories = stats.totalCategories || 0;
   const currentStock = stats.currentStock || 0;
   const lowStockCount = stats.lowStockCount || 0;
-  const pendingIndents = stats.pendingIndents || 0;
-  const todayPurchased = stats.todayPurchased || 0;
-  const todayTransferred = stats.todayTransferred || 0;
+  const purchasesCount = stats.purchases !== undefined ? stats.purchases : (stats.todayPurchased || 0);
+  const transfersCount = stats.transfers !== undefined ? stats.transfers : (stats.todayTransferred || 0);
+  const pendingIndents = stats.pendingIndents !== undefined ? stats.pendingIndents : (stats.pendingIndentCount || 0);
 
   return (
-    <Layout title="Central Store Dashboard" breadcrumb="Consumable Stock & Inventory Analytics">
+    <Layout title="Admin Dashboard" breadcrumb="Consumable Stock & Inventory Overview">
       {error && (
         <div className="login-error-box" style={{ marginBottom: '18px' }}>
           ⚠ {error}
         </div>
       )}
 
-      {/* Dynamic Summary Metric Cards */}
-      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
+      {/* 7 Summary Cards */}
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: '24px' }}>
         <StatCard
           label="Total Products"
           figure={totalProducts}
           icon="▦"
           variant="blue"
-          onClick={() => navigate('/admin/products')}
+          onClick={() => navigate('/products')}
         />
         <StatCard
-          label="Total Stock Units"
+          label="Total Categories"
+          figure={totalCategories}
+          icon="🏷"
+          variant="blue"
+          onClick={() => navigate('/categories')}
+        />
+        <StatCard
+          label="Current Stock"
           figure={currentStock.toLocaleString()}
           icon="✓"
           variant="green"
-          onClick={() => navigate('/admin/products')}
+          onClick={() => navigate('/products')}
         />
         <StatCard
-          label="Low Stock Items"
+          label="Low Stock"
           figure={lowStockCount}
-          icon="!"
+          icon="⚠"
           variant="red"
           onClick={() => navigate('/low-stock')}
         />
         <StatCard
-          label="Pending Indents"
-          figure={pendingIndents}
-          icon="▧"
-          variant="amber"
-          onClick={() => navigate('/admin/requests')}
-        />
-        <StatCard
-          label="Today's Purchased"
-          figure={`+${todayPurchased}`}
+          label="Purchases"
+          figure={purchasesCount}
           icon="↧"
           variant="blue"
           onClick={() => navigate('/purchases')}
         />
         <StatCard
-          label="Today's Transferred"
-          figure={`-${todayTransferred}`}
+          label="Transfers"
+          figure={transfersCount}
           icon="↥"
           variant="amber"
           onClick={() => navigate('/transfers')}
+        />
+        <StatCard
+          label="Pending Indents"
+          figure={pendingIndents}
+          icon="📋"
+          variant="amber"
+          onClick={() => navigate('/manage-indents')}
         />
       </div>
 

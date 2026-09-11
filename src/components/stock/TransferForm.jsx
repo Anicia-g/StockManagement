@@ -4,7 +4,7 @@ import Button from '../common/Button';
 import { productApi, transferApi, masterDataApi } from '../../services/api';
 import { useNotifications } from '../../context/NotificationContext';
 
-export const TransferForm = ({ onTransferCompleted = null }) => {
+export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = null }) => {
   const [products, setProducts] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -42,7 +42,7 @@ export const TransferForm = ({ onTransferCompleted = null }) => {
 
   const selectedProduct = products.find((p) => p._id === selectedProductId);
   const availableStock = selectedProduct ? selectedProduct.currentQuantity : 0;
-  const minStock = selectedProduct ? selectedProduct.minimumStockLevel : 0;
+  const minStock = selectedProduct ? (selectedProduct.minimumQuantity !== undefined ? selectedProduct.minimumQuantity : (selectedProduct.minimumStockLevel || 5)) : 0;
   const numQty = Number(quantity) || 0;
 
   const isOverLimit = numQty > availableStock;
@@ -82,21 +82,47 @@ export const TransferForm = ({ onTransferCompleted = null }) => {
       if (res.success) {
         setFeedback({
           type: 'success',
-          message: res.message
+          message: res.message || 'Transfer recorded successfully.'
         });
 
-        // Update local product stock
+        const newStockVal =
+          res.data?.product?.currentQuantity ??
+          res.product?.newQuantity ??
+          res.updatedProduct?.currentQuantity ??
+          Math.max(0, availableStock - numQty);
+
         setProducts((prev) =>
           prev.map((p) =>
-            p._id === selectedProductId ? { ...p, currentQuantity: res.product.newQuantity } : p
+            p._id === selectedProductId ? { ...p, currentQuantity: newStockVal } : p
           )
         );
 
-        fetchNotifications();
-        if (onTransferCompleted) onTransferCompleted(res.transfer);
+        if (typeof fetchNotifications === 'function') {
+          fetchNotifications();
+        }
 
-        setQuantity(1);
+        const transferRecord = res.data?.transfer || res.transfer || {
+          quantity: numQty,
+          productName: selectedProduct?.productName || selectedProduct?.name,
+          department
+        };
+
+        const cb = onTransferSuccess || onTransferCompleted;
+        if (typeof cb === 'function') {
+          try {
+            cb(transferRecord);
+          } catch (errCb) {
+            console.error('Error in onTransferSuccess callback:', errCb);
+          }
+        }
+
+        setQuantity('');
         setRemarks('');
+      } else {
+        setFeedback({
+          type: 'error',
+          message: res.message || 'Failed to issue transfer.'
+        });
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to issue transfer.';

@@ -142,31 +142,43 @@ export const getStockHistory = async (req, res, next) => {
       .skip(skip)
       .limit(pageSize);
 
-    // Format for frontend
-    const formatted = transactions.map(t => ({
-      id: t._id,
-      _id: t._id,
-      transactionId: t.transactionId,
-      date: t.date,
-      productId: t.productId,
-      productCode: t.productCode,
-      productName: t.productName,
-      type: t.transactionType === 'IN' || t.transactionType === 'PURCHASE' ? 'IN' : 'OUT',
-      transactionType: t.transactionType,
-      quantity: t.quantity,
-      previousQuantity: t.previousQuantity,
-      newQuantity: t.newQuantity,
-      department: t.department,
-      remarks: t.remarks,
-      recordedBy: t.recordedBy,
-      performedBy: t.recordedBy,
-      referenceId: t.referenceId || t.transactionId
-    }));
+    const [totalPurchases, totalTransfers] = await Promise.all([
+      StockTransaction.countDocuments({ transactionType: { $in: ['PURCHASE', 'IN'] } }),
+      StockTransaction.countDocuments({ transactionType: { $in: ['TRANSFER', 'OUT'] } })
+    ]);
+
+    // Format for frontend with clean PURCHASE and TRANSFER types
+    const formatted = transactions.map(t => {
+      const isPurchase = t.transactionType === 'PURCHASE' || t.transactionType === 'IN';
+      return {
+        id: t._id,
+        _id: t._id,
+        transactionId: t.transactionId,
+        date: t.date,
+        productId: t.productId,
+        productCode: t.productCode,
+        productName: t.productName,
+        stockRegister: t.stockRegister || 'SR1',
+        type: isPurchase ? 'PURCHASE' : 'TRANSFER',
+        transactionType: isPurchase ? 'PURCHASE' : 'TRANSFER',
+        typeLabel: isPurchase ? 'Purchase' : 'Transfer',
+        quantity: Math.abs(t.quantity || 0),
+        previousQuantity: t.previousQuantity,
+        newQuantity: t.newQuantity,
+        department: t.department || 'Store',
+        remarks: t.remarks || '',
+        recordedBy: t.recordedBy || 'Admin',
+        performedBy: t.recordedBy || 'Admin',
+        referenceId: t.referenceId || t.transactionId
+      };
+    });
 
     res.json({
       success: true,
       count: formatted.length,
       total,
+      totalPurchases,
+      totalTransfers,
       page: pageNum,
       totalPages: Math.ceil(total / pageSize),
       limit: pageSize,
