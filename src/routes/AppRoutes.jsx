@@ -17,6 +17,12 @@ import StockHistory from '../pages/StockHistory';
 import LowStock from '../pages/LowStock';
 import Analytics from '../pages/Analytics';
 import Reports from '../pages/Reports';
+import FacultyCatalog from '../pages/FacultyCatalog';
+import Categories from '../pages/Categories';
+import Units from '../pages/Units';
+import StockRegisters from '../pages/StockRegisters';
+import ManageIndents from '../pages/ManageIndents';
+import FacultyRequests from '../pages/FacultyRequests';
 
 export const AppRoutes = () => {
   return (
@@ -24,7 +30,45 @@ export const AppRoutes = () => {
       {/* Public Route */}
       <Route path="/login" element={<Login />} />
 
-      {/* General Protected Routes (Admin & Faculty/Staff) */}
+      {/* Faculty Dedicated Routes */}
+      <Route
+        path="/catalog"
+        element={
+          <ProtectedRoute>
+            <FacultyCatalog />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/faculty/catalog"
+        element={
+          <ProtectedRoute>
+            <FacultyCatalog />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/faculty/requests"
+        element={
+          <ProtectedRoute>
+            <FacultyRequests />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/faculty/dashboard" element={<Navigate to="/dashboard" replace />} />
+
+      {/* Admin Route Aliases */}
+      <Route path="/admin/dashboard" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/admin/products" element={<Navigate to="/products" replace />} />
+      <Route path="/admin/requests" element={<Navigate to="/manage-indents" replace />} />
+      <Route path="/admin/purchases" element={<Navigate to="/purchases" replace />} />
+      <Route path="/admin/transfers" element={<Navigate to="/transfers" replace />} />
+      <Route path="/admin/history" element={<Navigate to="/history" replace />} />
+      <Route path="/admin/low-stock" element={<Navigate to="/low-stock" replace />} />
+      <Route path="/admin/analytics" element={<Navigate to="/analytics" replace />} />
+      <Route path="/admin/reports" element={<Navigate to="/reports" replace />} />
+
+      {/* General Protected Routes (Admin & Faculty) */}
       <Route
         path="/dashboard"
         element={
@@ -74,7 +118,45 @@ export const AppRoutes = () => {
         }
       />
 
-      {/* Admin Only Routes */}
+      {/* Admin Only Master Data Routes */}
+      <Route
+        path="/categories"
+        element={
+          <RoleRoute requireAdmin={true}>
+            <Categories />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/units"
+        element={
+          <RoleRoute requireAdmin={true}>
+            <Units />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/stock-documents"
+        element={
+          <RoleRoute requireAdmin={true}>
+            <StockRegisters />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/stock-registers"
+        element={<Navigate to="/stock-documents" replace />}
+      />
+      <Route
+        path="/manage-indents"
+        element={
+          <RoleRoute requireAdmin={true}>
+            <ManageIndents />
+          </RoleRoute>
+        }
+      />
+
+      {/* Admin Only Movement & Stock Routes */}
       <Route
         path="/purchases"
         element={

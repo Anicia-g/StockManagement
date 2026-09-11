@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import connectDB from '../config/db.js';
 import User from '../models/User.js';
+import Role from '../models/Role.js';
 import Department from '../models/Department.js';
 import Category from '../models/Category.js';
 import Unit from '../models/Unit.js';
@@ -21,9 +22,10 @@ const seedDatabase = async () => {
   try {
     await connectDB();
 
-    console.log('Clearing existing database collections...');
+    console.log('Clearing existing database collections in MongoDB Atlas...');
     await Promise.all([
       User.deleteMany(),
+      Role.deleteMany(),
       Department.deleteMany(),
       Category.deleteMany(),
       Unit.deleteMany(),
@@ -38,71 +40,50 @@ const seedDatabase = async () => {
       Notification.deleteMany()
     ]);
 
-    console.log('1. Seeding Roles & Users...');
+    console.log('1. Seeding Roles...');
+    const rolesData = [
+      { name: 'ADMIN', description: 'Consumable Stock Administrator with full CRUD' },
+      { name: 'FACULTY', description: 'Academic Faculty with Catalog browsing and Indent Requisition privileges' }
+    ];
+    await Role.insertMany(rolesData);
+
+    console.log('2. Seeding Users (Admin and Faculty ONLY)...');
     const adminUser = await User.create({
       username: 'admin',
       password: 'admin123',
-      name: 'Maintenance Admin',
-      email: 'admin.maint@nec.edu.in',
+      name: 'System Admin',
+      email: 'admin@nec.edu.in',
       role: 'ADMIN',
-      department: 'Maintenance Dept.',
-      avatarText: 'AD'
+      department: 'Central Store',
+      avatarText: 'AD',
+      active: true
     });
 
-    const staffUser = await User.create({
-      username: 'staff',
-      password: 'staff123',
-      name: 'E. Ramesh',
-      email: 'ramesh.store@nec.edu.in',
-      role: 'STAFF',
-      department: 'Store & Maintenance',
-      avatarText: 'ER'
-    });
-
-    const viewerUser = await User.create({
-      username: 'viewer',
-      password: 'viewer123',
-      name: 'Auditor Viewer',
-      email: 'viewer.audit@nec.edu.in',
-      role: 'VIEWER',
-      department: 'Administration',
-      avatarText: 'AV'
-    });
-
-    const facultyCse = await User.create({
-      username: 'cse.faculty',
+    const facultyUser = await User.create({
+      username: 'faculty',
       password: 'faculty123',
-      name: 'Dr. K. Saravanan',
-      email: 'saravanan.cse@nec.edu.in',
-      role: 'FACULTY',
-      department: 'Computer Science & Engineering',
-      avatarText: 'KS'
-    });
-
-    const facultyEee = await User.create({
-      username: 'eee.faculty',
-      password: 'faculty123',
-      name: 'Prof. S. Devi',
-      email: 'devi.eee@nec.edu.in',
+      name: 'Faculty User',
+      email: 'faculty@nec.edu.in',
       role: 'FACULTY',
       department: 'Electrical & Electronics Engineering',
-      avatarText: 'SD'
+      avatarText: 'FA',
+      active: true
     });
 
-    console.log('2. Seeding Departments...');
+    console.log('3. Seeding Departments...');
     const departmentsData = [
-      { name: 'Computer Science & Engineering', code: 'CSE', description: 'Department of CSE' },
       { name: 'Electrical & Electronics Engineering', code: 'EEE', description: 'Department of EEE' },
+      { name: 'Computer Science & Engineering', code: 'CSE', description: 'Department of CSE' },
       { name: 'Electronics & Communication Engineering', code: 'ECE', description: 'Department of ECE' },
       { name: 'Mechanical Engineering', code: 'MECH', description: 'Department of Mechanical' },
-      { name: 'Civil Engineering', code: 'CIVIL', description: 'Department of Civil Engineering' },
-      { name: 'Information Technology', code: 'IT', description: 'Department of Information Technology' },
-      { name: 'Administration', code: 'ADMIN', description: 'Administrative Section' },
-      { name: 'Maintenance Dept.', code: 'MAINT', description: 'Central Electrical & Works Maintenance' }
+      { name: 'Civil Engineering', code: 'CIVIL', description: 'Department of Civil' },
+      { name: 'Information Technology', code: 'IT', description: 'Department of IT' },
+      { name: 'Central Store', code: 'STORE', description: 'Central Consumable Store' }
     ];
     const departments = await Department.insertMany(departmentsData);
+    const eeeDept = departments.find(d => d.code === 'EEE');
 
-    console.log('3. Seeding Categories...');
+    console.log('4. Seeding Categories...');
     const categoriesData = [
       { name: 'Lighting', description: 'Lamps, Tubes, LED Bulbs and Fixtures' },
       { name: 'Wiring', description: 'Copper Wires, Cables and Flexible Conduits' },
@@ -111,9 +92,9 @@ const seedDatabase = async () => {
       { name: 'Appliances', description: 'Fans, Exhausts, Heaters, Starters' },
       { name: 'Consumables', description: 'Tapes, Fuses, Screws, Insulation, Lugs' }
     ];
-    const categories = await Category.insertMany(categoriesData);
+    await Category.insertMany(categoriesData);
 
-    console.log('4. Seeding Units...');
+    console.log('5. Seeding Units...');
     const unitsData = [
       { name: 'Pieces', symbol: 'pcs' },
       { name: 'Meter', symbol: 'm' },
@@ -122,9 +103,9 @@ const seedDatabase = async () => {
       { name: 'Coil', symbol: 'coil' },
       { name: 'Set', symbol: 'set' }
     ];
-    const units = await Unit.insertMany(unitsData);
+    await Unit.insertMany(unitsData);
 
-    console.log('5. Seeding Stock Registers / Documents (CSSR1, SR1, SR2, SR3)...');
+    console.log('6. Seeding Physical Stock Registers...');
     const stockDocumentsData = [
       { name: 'CSSR1', description: 'Central Store Stock Register 1 (Major Equipment & Lighting)' },
       { name: 'SR1', description: 'Stock Register 1 (Consumables & Wires)' },
@@ -135,10 +116,10 @@ const seedDatabase = async () => {
     const docMap = {};
     stockDocuments.forEach(d => { docMap[d.name] = d; });
 
-    console.log('6. Seeding Products...');
+    console.log('7. Seeding Products with sequential CON-XXXX codes...');
     const sampleProducts = [
       {
-        productCode: 'EL-BULB-001',
+        productCode: 'CON-0001',
         productName: 'LED Bulb 10W (B22)',
         name: 'LED Bulb 10W (B22)',
         category: 'Lighting',
@@ -150,32 +131,36 @@ const seedDatabase = async () => {
         stockRegister: 'SR1',
         pageNumber: 15,
         registerRefs: [
-          { sheet: 'SR1', page: 15, note: 'Primary stock entry' },
-          { sheet: 'SR3', page: 42, note: 'Secondary distribution log' }
+          { sheet: 'SR1', page: 15, note: 'Primary stock register entry' },
+          { sheet: 'CSSR1', page: 42, note: 'Central register cross-reference' }
         ],
         active: true,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        createdBy: 'System Admin',
+        updatedBy: 'System Admin'
       },
       {
-        productCode: 'EL-SW-001',
+        productCode: 'CON-0002',
         productName: 'Switch (2-pin, 6A)',
         name: 'Switch (2-pin, 6A)',
         category: 'Electrical Accessories',
         description: 'Modular 6A 1-way electrical switch (White finish)',
         unit: 'Pieces',
-        currentQuantity: 7, // Low stock on purpose for testing!
+        currentQuantity: 4, // Low stock for testing
         minimumQuantity: 10,
         minimumStockLevel: 10,
         stockRegister: 'SR2',
         pageNumber: 28,
         registerRefs: [
-          { sheet: 'SR2', page: 28, note: 'Accessories section' }
+          { sheet: 'SR2', page: 28, note: 'Wiring devices page' }
         ],
         active: true,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        createdBy: 'System Admin',
+        updatedBy: 'System Admin'
       },
       {
-        productCode: 'EL-FAN-001',
+        productCode: 'CON-0003',
         productName: 'Ceiling Fan 1200mm',
         name: 'Ceiling Fan 1200mm',
         category: 'Appliances',
@@ -187,389 +172,232 @@ const seedDatabase = async () => {
         stockRegister: 'SR3',
         pageNumber: 12,
         registerRefs: [
-          { sheet: 'SR3', page: 12, note: 'Appliance register' }
+          { sheet: 'SR3', page: 12, note: 'Appliance ledger' }
         ],
         active: true,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        createdBy: 'System Admin',
+        updatedBy: 'System Admin'
       },
       {
-        productCode: 'EL-MCB-001',
+        productCode: 'CON-0004',
         productName: 'MCB 32A Single Pole',
         name: 'MCB 32A Single Pole',
         category: 'Switchgear',
         description: '32A C-Curve Single Pole Miniature Circuit Breaker 10kA',
         unit: 'Pieces',
         currentQuantity: 18,
-        minimumQuantity: 6,
-        minimumStockLevel: 6,
+        minimumQuantity: 8,
+        minimumStockLevel: 8,
         stockRegister: 'SR2',
-        pageNumber: 54,
+        pageNumber: 45,
         registerRefs: [
-          { sheet: 'SR2', page: 54, note: 'Switchgear bay' }
+          { sheet: 'SR2', page: 45, note: 'Switchgear section' }
         ],
         active: true,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        createdBy: 'System Admin',
+        updatedBy: 'System Admin'
       },
       {
-        productCode: 'EL-WIRE-001',
-        productName: 'Copper Wire 1.5 sq.mm',
-        name: 'Copper Wire 1.5 sq.mm',
+        productCode: 'CON-0005',
+        productName: 'Copper Wire 1.5 sq.mm (Red)',
+        name: 'Copper Wire 1.5 sq.mm (Red)',
         category: 'Wiring',
-        description: 'FR PVC Insulated single core industrial copper cable (Red/Black)',
-        unit: 'Meter',
-        currentQuantity: 320,
-        minimumQuantity: 100,
-        minimumStockLevel: 100,
+        description: 'FR PVC Insulated Copper Wire 1.5 sq.mm, 90m Coil',
+        unit: 'Coil',
+        currentQuantity: 12,
+        minimumQuantity: 5,
+        minimumStockLevel: 5,
         stockRegister: 'SR1',
         pageNumber: 8,
         registerRefs: [
-          { sheet: 'SR1', page: 8, note: 'Cables shelf' }
+          { sheet: 'SR1', page: 8, note: 'Cables and wiring section' }
         ],
         active: true,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        createdBy: 'System Admin',
+        updatedBy: 'System Admin'
       },
       {
-        productCode: 'EL-TUBE-001',
-        productName: 'LED Tube Light 20W',
-        name: 'LED Tube Light 20W',
-        category: 'Lighting',
-        description: '4ft 20W Batten LED tube light fixture with integrated driver',
-        unit: 'Pieces',
-        currentQuantity: 3, // Low stock on purpose!
-        minimumQuantity: 8,
-        minimumStockLevel: 8,
-        stockRegister: 'CSSR1',
-        pageNumber: 65,
-        registerRefs: [
-          { sheet: 'CSSR1', page: 65, note: 'Central lighting' }
-        ],
-        active: true,
-        status: 'ACTIVE'
-      },
-      {
-        productCode: 'EL-HOLD-001',
-        productName: 'Bulb Holder (B22)',
-        name: 'Bulb Holder (B22)',
-        category: 'Electrical Accessories',
-        description: 'B22 angle/batten brass plunger lamp holder with porcelain base',
-        unit: 'Pieces',
-        currentQuantity: 45,
+        productCode: 'CON-0006',
+        productName: 'PVC Insulation Tape (Black)',
+        name: 'PVC Insulation Tape (Black)',
+        category: 'Consumables',
+        description: 'Flame retardant electrical insulating tape 18mm x 7m',
+        unit: 'Roll',
+        currentQuantity: 40,
         minimumQuantity: 15,
         minimumStockLevel: 15,
         stockRegister: 'SR1',
-        pageNumber: 33,
+        pageNumber: 3,
         registerRefs: [
-          { sheet: 'SR1', page: 33, note: 'Hardware accessories' }
+          { sheet: 'SR1', page: 3, note: 'Consumables section' }
         ],
         active: true,
-        status: 'ACTIVE'
-      },
-      {
-        productCode: 'EL-SOCK-001',
-        productName: '5-Pin Socket 6A',
-        name: '5-Pin Socket 6A',
-        category: 'Electrical Accessories',
-        description: '6A 5-Pin universal modular shuttered power socket',
-        unit: 'Pieces',
-        currentQuantity: 28,
-        minimumQuantity: 10,
-        minimumStockLevel: 10,
-        stockRegister: 'SR2',
-        pageNumber: 19,
-        registerRefs: [
-          { sheet: 'SR2', page: 19, note: 'Wall sockets' }
-        ],
-        active: true,
-        status: 'ACTIVE'
-      },
-      {
-        productCode: 'EL-TAPE-001',
-        productName: 'Insulation Tape',
-        name: 'Insulation Tape',
-        category: 'Consumables',
-        description: 'PVC electrical flame retardant self-adhesive tape (Assorted)',
-        unit: 'Roll',
-        currentQuantity: 2, // Low stock on purpose!
-        minimumQuantity: 10,
-        minimumStockLevel: 10,
-        stockRegister: 'SR1',
-        pageNumber: 5,
-        registerRefs: [
-          { sheet: 'SR1', page: 5, note: 'Consumables drawer' }
-        ],
-        active: true,
-        status: 'ACTIVE'
-      },
-      {
-        productCode: 'EL-DB-001',
-        productName: 'Distribution Board 8-way',
-        name: 'Distribution Board 8-way',
-        category: 'Switchgear',
-        description: '8-Way SPN Double Door Sheet Steel Distribution Board enclosure',
-        unit: 'Box',
-        currentQuantity: 6,
-        minimumQuantity: 2,
-        minimumStockLevel: 2,
-        stockRegister: 'CSSR1',
-        pageNumber: 88,
-        registerRefs: [
-          { sheet: 'CSSR1', page: 88, note: 'Heavy enclosure panel' }
-        ],
-        active: true,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        createdBy: 'System Admin',
+        updatedBy: 'System Admin'
       }
     ];
 
-    const createdProducts = [];
-    for (const p of sampleProducts) {
-      const prod = await Product.create({
-        ...p,
-        createdBy: 'E. Ramesh',
-        updatedBy: 'E. Ramesh'
-      });
-      createdProducts.push(prod);
+    const products = await Product.insertMany(sampleProducts);
 
-      // Create ProductDocumentReferences
-      for (const ref of p.registerRefs) {
+    // Create document reference documents
+    for (const prod of products) {
+      for (const ref of prod.registerRefs) {
+        const stockDoc = docMap[ref.sheet];
         await ProductDocumentReference.create({
           productId: prod._id,
-          stockDocumentId: docMap[ref.sheet]?._id || null,
+          stockDocumentId: stockDoc?._id || null,
           stockDocumentName: ref.sheet,
           pageNumber: ref.page,
           referenceNote: ref.note || ''
         });
       }
+    }
 
-      // Add sample initial remark
-      await ProductRemark.create({
+    console.log('8. Seeding Initial Stock Movements & Transactions...');
+    const today = new Date().toISOString().split('T')[0];
+    for (const prod of products) {
+      await StockTransaction.create({
+        transactionId: `TXN-INIT-${prod.productCode}`,
+        transactionType: 'IN',
         productId: prod._id,
-        remark: `Verified stock entry for ${prod.productName} in register ${p.stockRegister} Page ${p.pageNumber}.`,
-        enteredBy: 'E. Ramesh, Store Keeper',
-        enteredAt: new Date(Date.now() - 3 * 86400000)
+        productCode: prod.productCode,
+        productName: prod.productName,
+        quantity: prod.currentQuantity,
+        previousQuantity: 0,
+        newQuantity: prod.currentQuantity,
+        department: 'Store',
+        date: today,
+        remarks: 'Physical register opening stock balance',
+        recordedBy: 'System Admin'
       });
     }
 
-    console.log('7. Seeding Initial Stock History & Transactions...');
-    const bulbProd = createdProducts.find(p => p.productCode === 'EL-BULB-001');
-    const switchProd = createdProducts.find(p => p.productCode === 'EL-SW-001');
-    const fanProd = createdProducts.find(p => p.productCode === 'EL-FAN-001');
-    const wireProd = createdProducts.find(p => p.productCode === 'EL-WIRE-001');
-
-    const transactionsData = [
-      {
-        transactionId: 'TXN-2026-001',
-        transactionType: 'IN',
-        productId: bulbProd._id,
-        productCode: bulbProd.productCode,
-        productName: bulbProd.productName,
-        quantity: 50,
-        previousQuantity: 0,
-        newQuantity: 50,
-        department: 'Store',
-        date: '2026-09-01',
-        remarks: 'New procurement received from Sri Balaji Electricals, Invoice #INV-4432',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      },
-      {
-        transactionId: 'TXN-2026-002',
-        transactionType: 'OUT',
-        productId: bulbProd._id,
-        productCode: bulbProd.productCode,
-        productName: bulbProd.productName,
-        quantity: 15,
-        previousQuantity: 50,
-        newQuantity: 35,
-        department: 'Computer Science & Engineering',
-        date: '2026-09-03',
-        remarks: 'Issued for Lab-3 overhead light replacement',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      },
-      {
-        transactionId: 'TXN-2026-003',
-        transactionType: 'OUT',
-        productId: bulbProd._id,
-        productCode: bulbProd.productCode,
-        productName: bulbProd.productName,
-        quantity: 10,
-        previousQuantity: 35,
-        newQuantity: 25,
-        department: 'Electrical & Electronics Engineering',
-        date: '2026-09-06',
-        remarks: 'Seminar hall lighting maintenance',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      },
-      {
-        transactionId: 'TXN-2026-004',
-        transactionType: 'IN',
-        productId: switchProd._id,
-        productCode: switchProd.productCode,
-        productName: switchProd.productName,
-        quantity: 20,
-        previousQuantity: 0,
-        newQuantity: 20,
-        department: 'Store',
-        date: '2026-09-02',
-        remarks: 'Quarterly supply batch',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      },
-      {
-        transactionId: 'TXN-2026-005',
-        transactionType: 'OUT',
-        productId: switchProd._id,
-        productCode: switchProd.productCode,
-        productName: switchProd.productName,
-        quantity: 13,
-        previousQuantity: 20,
-        newQuantity: 7,
-        department: 'Mechanical Engineering',
-        date: '2026-09-07',
-        remarks: 'Workshop machine board switch replacements (Now Low Stock)',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      },
-      {
-        transactionId: 'TXN-2026-006',
-        transactionType: 'IN',
-        productId: fanProd._id,
-        productCode: fanProd.productCode,
-        productName: fanProd.productName,
-        quantity: 15,
-        previousQuantity: 0,
-        newQuantity: 15,
-        department: 'Store',
-        date: '2026-09-04',
-        remarks: 'Summer replenishment delivery',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      },
-      {
-        transactionId: 'TXN-2026-007',
-        transactionType: 'OUT',
-        productId: fanProd._id,
-        productCode: fanProd.productCode,
-        productName: fanProd.productName,
-        quantity: 1,
-        previousQuantity: 15,
-        newQuantity: 14,
-        department: 'Administration',
-        date: '2026-09-08',
-        remarks: 'Dean Office room 102 installation',
-        recordedBy: 'E. Ramesh (Store Keeper)'
-      }
-    ];
-
-    await StockTransaction.insertMany(transactionsData);
-
-    console.log('8. Seeding Indents...');
-    const indent1 = await Indent.create({
-      indentNumber: 'IND-2026-001',
-      date: '2026-09-05',
-      requestDate: '2026-09-05',
-      requiredDate: '2026-09-12',
-      requestingDepartment: 'Computer Science & Engineering',
-      department: 'Computer Science & Engineering',
-      requestedBy: 'Dr. K. Saravanan (FACULTY)',
-      requesterName: 'Dr. K. Saravanan',
-      requesterId: facultyCse._id,
-      recommendedBy: 'HOD CSE',
-      approvedBy: 'Store Superintendent',
-      status: 'APPROVED',
-      purpose: 'Lab 4 Computer Systems Power Strip & Socket Repair',
-      remarks: 'Urgent requirement for semester practical examination setup',
-      adminRemarks: 'Approved as per lab allocation request.',
-      items: [
-        {
-          productId: switchProd._id,
-          productCode: switchProd.productCode,
-          productName: switchProd.productName,
-          stockRegister: 'SR2',
-          unit: 'Pieces',
-          availableQuantityAtRequest: switchProd.currentQuantity,
-          quantityRequired: 5,
-          requestedQuantity: 5,
-          quantityRecommended: 5,
-          quantityApproved: 5,
-          approvedQuantity: 5,
-          quantityIssued: 0,
-          lineRemarks: 'For terminal boards'
-        },
-        {
-          productId: wireProd._id,
-          productCode: wireProd.productCode,
-          productName: wireProd.productName,
-          stockRegister: 'SR1',
-          unit: 'Meter',
-          availableQuantityAtRequest: wireProd.currentQuantity,
-          quantityRequired: 30,
-          requestedQuantity: 30,
-          quantityRecommended: 30,
-          quantityApproved: 30,
-          approvedQuantity: 30,
-          quantityIssued: 0,
-          lineRemarks: 'Grounding line'
-        }
-      ]
+    console.log('9. Seeding Recorded Physical Purchase (PUR-0001)...');
+    const bulbProd = products.find(p => p.productCode === 'CON-0001');
+    await Purchase.create({
+      purchaseNumber: 'PUR-0001',
+      purchaseId: 'PUR-0001',
+      date: today,
+      productId: bulbProd._id,
+      productCode: bulbProd.productCode,
+      productName: bulbProd.productName,
+      stockRegister: bulbProd.stockRegister,
+      pageNumber: bulbProd.pageNumber,
+      quantity: 10,
+      unit: bulbProd.unit,
+      unitPrice: 95,
+      totalAmount: 950,
+      supplier: 'National Electrical Supplies',
+      invoiceNumber: 'INV-2026-884',
+      recordedBy: 'System Admin',
+      remarks: 'Replenishment for main corridor fixtures'
     });
 
-    const indent2 = await Indent.create({
-      indentNumber: 'IND-2026-002',
-      date: '2026-09-07',
-      requestDate: '2026-09-07',
-      requiredDate: '2026-09-15',
+    console.log('10. Seeding Recorded Physical Transfer (TRF-0001)...');
+    const tapeProd = products.find(p => p.productCode === 'CON-0006');
+    await Transfer.create({
+      transferNumber: 'TRF-0001',
+      transferId: 'TRF-0001',
+      date: today,
+      productId: tapeProd._id,
+      productCode: tapeProd.productCode,
+      productName: tapeProd.productName,
+      stockRegister: tapeProd.stockRegister,
+      pageNumber: tapeProd.pageNumber,
+      quantity: 5,
+      unit: tapeProd.unit,
+      department: 'Electrical & Electronics Engineering',
+      departmentId: eeeDept?._id || null,
+      issuedTo: 'Faculty User',
+      issuedBy: 'System Admin',
+      purpose: 'Lab wiring maintenance',
+      remarks: 'Issued for bench rewiring'
+    });
+
+    console.log('11. Seeding Sample Faculty Indent (IND-0001)...');
+    const switchProd = products.find(p => p.productCode === 'CON-0002');
+
+    await Indent.create({
+      indentNumber: 'IND-0001',
+      date: today,
+      requestDate: today,
+      requiredDate: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
       requestingDepartment: 'Electrical & Electronics Engineering',
       department: 'Electrical & Electronics Engineering',
-      requestedBy: 'Prof. S. Devi (FACULTY)',
-      requesterName: 'Prof. S. Devi',
-      requesterId: facultyEee._id,
+      departmentId: eeeDept?._id || null,
+      requesterId: facultyUser._id,
+      requestedBy: 'Faculty User (FACULTY)',
+      requesterName: 'Faculty User',
+      purpose: 'Replacement of lab lighting and workstation switches in Power Electronics Lab',
+      remarks: 'Lab scheduled for practical exams',
       status: 'SUBMITTED',
-      purpose: 'Power Electronics Laboratory Project Racks Lighting',
-      remarks: 'Standard lab consumable indent',
       items: [
         {
           productId: bulbProd._id,
           productCode: bulbProd.productCode,
           productName: bulbProd.productName,
-          stockRegister: 'SR1',
-          unit: 'Pieces',
+          stockRegister: bulbProd.stockRegister,
+          unit: bulbProd.unit,
           availableQuantityAtRequest: bulbProd.currentQuantity,
-          quantityRequired: 8,
-          requestedQuantity: 8,
+          quantityRequired: 5,
+          requestedQuantity: 5,
           quantityRecommended: 0,
-          quantityApproved: 8,
-          approvedQuantity: 8,
+          quantityApproved: 0,
+          approvedQuantity: 0,
           quantityIssued: 0,
-          lineRemarks: 'Workstation lights'
+          lineRemarks: 'For ceiling fixture replacement'
+        },
+        {
+          productId: switchProd._id,
+          productCode: switchProd.productCode,
+          productName: switchProd.productName,
+          stockRegister: switchProd.stockRegister,
+          unit: switchProd.unit,
+          availableQuantityAtRequest: switchProd.currentQuantity,
+          quantityRequired: 2,
+          requestedQuantity: 2,
+          quantityRecommended: 0,
+          quantityApproved: 0,
+          approvedQuantity: 0,
+          quantityIssued: 0,
+          lineRemarks: 'For bench 4 and 5'
         }
       ]
     });
 
-    console.log('9. Seeding Notifications...');
-    await Notification.create([
-      {
-        title: 'Low Stock Alert: Switch (2-pin, 6A)',
-        message: 'Product "Switch (2-pin, 6A)" (EL-SW-001) has only 7 pieces left in stock (Minimum: 10).',
-        type: 'LOW_STOCK',
-        targetRole: 'ADMIN',
-        referenceId: 'EL-SW-001'
-      },
-      {
-        title: 'Low Stock Alert: LED Tube Light 20W',
-        message: 'Product "LED Tube Light 20W" (EL-TUBE-001) is down to 3 pieces (Minimum: 8).',
-        type: 'LOW_STOCK',
-        targetRole: 'ADMIN',
-        referenceId: 'EL-TUBE-001'
-      },
-      {
-        title: 'Pending Indent: IND-2026-002',
-        message: 'EEE Department submitted Indent IND-2026-002 for 8 items.',
-        type: 'INDENT_CREATED',
-        targetRole: 'ADMIN',
-        referenceId: 'IND-2026-002'
-      }
-    ]);
+    console.log('12. Seeding Notifications...');
+    await Notification.create({
+      title: 'Low Stock Alert',
+      message: `Product "Switch (2-pin, 6A)" (CON-0002) is down to 4 Pieces (Minimum: 10). Restocking recommended.`,
+      type: 'LOW_STOCK',
+      targetRole: 'ADMIN',
+      referenceId: 'CON-0002',
+      isRead: false
+    });
 
-    console.log('✅ Database seeded successfully with complete Electrical Stock Management dataset!');
+    await Notification.create({
+      title: 'New Indent Submitted',
+      message: 'Indent IND-0001 submitted by Electrical & Electronics Engineering (2 items).',
+      type: 'INDENT_CREATED',
+      targetRole: 'ADMIN',
+      referenceId: 'IND-0001',
+      isRead: false
+    });
+
+    console.log('\n======================================================');
+    console.log('SEEDING COMPLETED SUCCESSFULLY IN MONGODB ATLAS!');
+    console.log('------------------------------------------------------');
+    console.log('Admin Account:   username: admin    password: admin123');
+    console.log('Faculty Account: username: faculty  password: faculty123');
+    console.log('======================================================\n');
+
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error seeding database:', error);
+    console.error('Error during database seed:', error);
     process.exit(1);
   }
 };

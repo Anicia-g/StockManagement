@@ -50,7 +50,7 @@ export const verifyToken = protect;
 
 /**
  * Role-based authorization middleware
- * @param  {...string} roles - Allowed roles e.g. 'ADMIN', 'STAFF', 'VIEWER'
+ * @param  {...string} roles - Allowed roles: 'ADMIN' and/or 'FACULTY'
  */
 export const authorize = (...roles) => {
   return (req, res, next) => {
@@ -61,14 +61,10 @@ export const authorize = (...roles) => {
       });
     }
 
-    // Role mapping: FACULTY is treated as STAFF level for indents and requests
-    const userRole = req.user.role ? req.user.role.toUpperCase() : 'VIEWER';
+    const userRole = req.user.role ? req.user.role.toUpperCase() : 'FACULTY';
     const normalizedRoles = roles.map(r => r.toUpperCase());
 
-    if (
-      normalizedRoles.includes(userRole) ||
-      (normalizedRoles.includes('STAFF') && userRole === 'FACULTY')
-    ) {
+    if (normalizedRoles.includes(userRole)) {
       return next();
     }
 
@@ -80,5 +76,7 @@ export const authorize = (...roles) => {
 };
 
 export const requireAdmin = authorize('ADMIN');
-export const requireStaffOrAdmin = authorize('ADMIN', 'STAFF', 'FACULTY');
-export const requireFacultyOrAdmin = authorize('ADMIN', 'STAFF', 'FACULTY');
+export const requireFaculty = authorize('FACULTY');
+export const requireFacultyOrAdmin = authorize('ADMIN', 'FACULTY');
+export const requireStaffOrAdmin = authorize('ADMIN', 'FACULTY'); // backward compatibility alias
+

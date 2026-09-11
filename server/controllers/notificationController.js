@@ -1,9 +1,36 @@
 import Notification from '../models/Notification.js';
+import Product from '../models/Product.js';
 
 // @desc    Get notifications for user/role
 // @route   GET /api/notifications
 export const getNotifications = async (req, res, next) => {
   try {
+    // If Admin, ensure low stock notifications exist for any low-stock products in MongoDB
+    if (req.user && req.user.role === 'ADMIN') {
+      const lowStockProducts = await Product.find({
+        active: { $ne: false },
+        $expr: { $lte: ['$currentQuantity', { $ifNull: ['$minimumQuantity', '$minimumStockLevel'] }] }
+      });
+
+      for (const p of lowStockProducts) {
+        const min = p.minimumQuantity !== undefined ? p.minimumQuantity : (p.minimumStockLevel || 5);
+        const exists = await Notification.findOne({
+          type: 'LOW_STOCK',
+          referenceId: p.productCode,
+          isRead: false
+        });
+        if (!exists) {
+          await Notification.create({
+            title: 'Low Stock Alert',
+            message: `Product "${p.productName || p.name}" (${p.productCode}) is at or below minimum stock level (${p.currentQuantity} ${p.unit} remaining, Minimum: ${min}).`,
+            type: 'LOW_STOCK',
+            targetRole: 'ADMIN',
+            referenceId: p.productCode
+          }).catch(() => {});
+        }
+      }
+    }
+
     let query = {
       $or: [
         { targetRole: 'ALL' },

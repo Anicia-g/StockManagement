@@ -65,30 +65,35 @@ export const Indents = () => {
     setTimeout(() => setActionSuccessMessage(''), 5000);
   };
 
-  const pendingCount = indents.filter((i) => i.status === 'PENDING').length;
-  const approvedCount = indents.filter((i) => i.status === 'APPROVED' || i.status === 'COMPLETED').length;
+  const pendingCount = indents.filter((i) => ['SUBMITTED', 'PENDING', 'RECOMMENDED'].includes(i.status)).length;
+  const approvedCount = indents.filter((i) => ['APPROVED', 'ISSUED', 'PARTIALLY_ISSUED', 'COMPLETED'].includes(i.status)).length;
 
   return (
-    <Layout>
-      <div className="topbar">
-        <div className="topbar-title">
-          <h1>{isAdmin ? 'Online Indent Requests' : 'My Indent Requests'}</h1>
-          <p>
-            {isAdmin
-              ? 'Review faculty material requisitions, approve stock allocations, and issue transfers.'
-              : 'Track the progress of your departmental material requisitions and view approval statuses.'}
-          </p>
-        </div>
-        {!isAdmin && (
-          <div className="topbar-actions">
+    <Layout
+      title={isAdmin ? 'Online Indent Requests' : 'My Indent Requests'}
+      breadcrumb={isAdmin ? 'Store Management / Indent Approvals' : 'Department Portal / My Material Requests'}
+    >
+      <div className="section" style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ fontSize: '1.25rem', marginBottom: '2px' }}>
+              {isAdmin ? 'Online Indent Requisitions' : 'My Indent Requisitions'}
+            </h1>
+            <p style={{ color: 'var(--text-500)', margin: 0, fontSize: '0.84rem' }}>
+              {isAdmin
+                ? 'Review faculty material requisitions, approve stock allocations, and issue transfers.'
+                : 'Track the status of your departmental material requisitions in real time.'}
+            </p>
+          </div>
+          {!isAdmin && (
             <Link to="/indents/create" className="btn-primary">
               <span className="icon">＋</span> Create New Indent
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="content-area">
+      <div>
         {actionSuccessMessage && (
           <div
             style={{
@@ -118,36 +123,36 @@ export const Indents = () => {
             <div className="metric-sub">Across all statuses</div>
           </div>
           <div className="metric-card" style={{ borderColor: pendingCount > 0 ? 'var(--amber-400)' : 'inherit' }}>
-            <div className="metric-label">Pending Approval</div>
+            <div className="metric-label">Pending Review</div>
             <div className="metric-value" style={{ color: pendingCount > 0 ? 'var(--amber-600)' : 'inherit' }}>
               {pendingCount}
             </div>
-            <div className="metric-sub">{pendingCount > 0 ? 'Action required by Store' : 'All indents up to date'}</div>
+            <div className="metric-sub">{pendingCount > 0 ? 'Action required by Store' : 'All indents processed'}</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Approved & Completed</div>
+            <div className="metric-label">Approved / Issued</div>
             <div className="metric-value" style={{ color: 'var(--green-700)' }}>
               {approvedCount}
             </div>
-            <div className="metric-sub">Issued to departments</div>
+            <div className="metric-sub">Store approved</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Workflow Mode</div>
+            <div className="metric-label">User Role</div>
             <div className="metric-value" style={{ fontSize: '1.2rem', color: 'var(--blue-700)' }}>
-              {isAdmin ? 'Store Admin' : 'Department Faculty'}
+              {isAdmin ? 'Admin' : 'Faculty'}
             </div>
-            <div className="metric-sub">{isAdmin ? 'Full review & issuance rights' : 'Requisition submitter'}</div>
+            <div className="metric-sub">{isAdmin ? 'Store review & approval' : 'Requisition submitter'}</div>
           </div>
         </div>
 
         {/* Indents Table Card */}
         <div className="card">
           <div className="card-head" style={{ flexWrap: 'wrap', gap: '12px' }}>
-            <span className="card-title">Indent Requisition Records</span>
+            <span className="card-title">Requisition Records</span>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <input
                 type="text"
-                placeholder="Search indent no, faculty, dept..."
+                placeholder="Search indent no, purpose, product..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -169,10 +174,9 @@ export const Indents = () => {
                 }}
               >
                 <option value="">All Statuses</option>
-                <option value="PENDING">PENDING</option>
+                <option value="SUBMITTED">SUBMITTED</option>
                 <option value="APPROVED">APPROVED</option>
-                <option value="PARTIALLY_APPROVED">PARTIALLY_APPROVED</option>
-                <option value="COMPLETED">COMPLETED</option>
+                <option value="ISSUED">ISSUED</option>
                 <option value="REJECTED">REJECTED</option>
               </select>
             </div>

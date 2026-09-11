@@ -10,7 +10,7 @@ connectDB();
 const PORT = process.env.PORT || 5050;
 
 const server = app.listen(PORT, () => {
-  console.log(`⚡ Electrical Stock Management Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  console.log(`📦 Consumable Stock Management Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
 });
 
 process.on('unhandledRejection', (err) => {

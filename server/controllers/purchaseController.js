@@ -2,6 +2,7 @@ import Product from '../models/Product.js';
 import Purchase from '../models/Purchase.js';
 import StockTransaction from '../models/StockTransaction.js';
 import Notification from '../models/Notification.js';
+import { generatePurchaseNumber } from '../utils/codeGenerator.js';
 
 // @desc    Get all purchases with optional filtering
 // @route   GET /api/purchases
@@ -79,8 +80,7 @@ export const recordPurchase = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found.' });
     }
 
-    const purchaseCount = await Purchase.countDocuments();
-    const purchaseId = `PUR-${new Date().getFullYear()}-${String(purchaseCount + 1).padStart(3, '0')}`;
+    const purchaseId = await generatePurchaseNumber();
     const previousQuantity = product.currentQuantity;
     const newQuantity = previousQuantity + qty;
 

@@ -3,26 +3,15 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import { productApi, masterDataApi } from '../../services/api';
 
-const DEFAULT_REGISTER_OPTIONS = ['SR1', 'SR2', 'SR3', 'CSSR1'];
-const DEFAULT_CATEGORY_OPTIONS = [
-  'Lighting',
-  'Wiring',
-  'Switchgear',
-  'Electrical Accessories',
-  'Appliances',
-  'Consumables'
-];
-const DEFAULT_UNIT_OPTIONS = ['Pieces', 'Meter', 'Roll', 'Box', 'Coil', 'Set'];
-
 export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
-  const [categories, setCategories] = useState(DEFAULT_CATEGORY_OPTIONS);
-  const [units, setUnits] = useState(DEFAULT_UNIT_OPTIONS);
-  const [registerOptions, setRegisterOptions] = useState(DEFAULT_REGISTER_OPTIONS);
+  const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [registerOptions, setRegisterOptions] = useState([]);
 
   const [formData, setFormData] = useState({
     productCode: '',
     name: '',
-    category: 'Lighting',
+    category: '',
     description: '',
     unit: 'Pieces',
     currentQuantity: 10,
@@ -91,11 +80,6 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
     e.preventDefault();
     setError('');
 
-    if (!formData.productCode.trim()) {
-      setError('Product code is required.');
-      return;
-    }
-
     if (!formData.name.trim()) {
       setError('Product name is required.');
       return;
@@ -109,7 +93,6 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
 
       const payload = {
         ...formData,
-        productCode: formData.productCode.trim().toUpperCase(),
         productName: formData.name.trim(),
         name: formData.name.trim(),
         currentQuantity: Number(formData.currentQuantity) || 0,
@@ -118,6 +101,12 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
         pageNumber: Number(formData.pageNumber) || 1,
         registerRefs: validRefs.length > 0 ? validRefs : [{ sheet: formData.stockRegister, page: formData.pageNumber }]
       };
+
+      if (formData.productCode && formData.productCode.trim()) {
+        payload.productCode = formData.productCode.trim().toUpperCase();
+      } else {
+        delete payload.productCode;
+      }
 
       const res = await productApi.createProduct(payload);
       if (res.success) {
@@ -153,7 +142,7 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add New Electrical Product"
+      title="Add New Consumable Product"
       maxWidth="700px"
     >
       {error && (
@@ -167,18 +156,18 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
           {/* Product Code */}
           <div className="field">
             <label htmlFor="modal-pcode">
-              Product Code <span className="req">*</span>
+              Product Code (Auto-Generated)
             </label>
             <input
               type="text"
               id="modal-pcode"
-              placeholder="e.g. EL-SW-008"
-              value={formData.productCode}
-              onChange={(e) =>
-                setFormData({ ...formData, productCode: e.target.value })
-              }
-              required
+              value={formData.productCode || 'Auto-generated sequential code (CON-XXXX)'}
+              disabled
+              style={{ background: 'var(--navy-50)', color: 'var(--blue-700)', fontWeight: 600, cursor: 'not-allowed' }}
             />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Assigned automatically by MongoDB on save (e.g. CON-0007)
+            </span>
           </div>
 
           {/* Product Name */}

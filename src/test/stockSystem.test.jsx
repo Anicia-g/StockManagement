@@ -256,42 +256,60 @@ vi.mock('../services/api', () => ({
       trends: [{ date: '08 Sep', purchases: 50, transfers: 5 }]
     })
   },
-  reportApi: {
-    getReportData: vi.fn().mockResolvedValue({
-      success: true,
-      title: 'Product Stock Inventory Report',
-      data: [
-        {
-          productCode: 'EL-SW-001',
-          name: 'Switch (2-pin, 6A)',
-          category: 'Wiring Accessories',
-          currentQuantity: 45,
-          minimumStockLevel: 20,
-          unit: 'Pieces',
-          stockRegister: 'SR1',
-          status: 'Available'
-        }
-      ]
-    })
-  }
-}));
+    reportApi: {
+      getReportData: vi.fn().mockResolvedValue({
+        success: true,
+        title: 'Product Stock Inventory Report',
+        data: [
+          {
+            productCode: 'EL-SW-001',
+            name: 'Switch (2-pin, 6A)',
+            category: 'Wiring Accessories',
+            currentQuantity: 45,
+            minimumStockLevel: 20,
+            unit: 'Pieces',
+            stockRegister: 'SR1',
+            status: 'Available'
+          }
+        ]
+      })
+    },
+    masterDataApi: {
+      getDepartments: vi.fn().mockResolvedValue({
+        success: true,
+        departments: [{ name: 'Electrical & Electronics Engineering' }, { name: 'CSE Department' }]
+      }),
+      getCategories: vi.fn().mockResolvedValue({
+        success: true,
+        categories: [{ name: 'Lighting' }, { name: 'Wiring Accessories' }]
+      }),
+      getUnits: vi.fn().mockResolvedValue({
+        success: true,
+        units: [{ name: 'Pieces' }, { name: 'Meters' }]
+      }),
+      getStockDocuments: vi.fn().mockResolvedValue({
+        success: true,
+        documents: [{ name: 'SR1' }, { name: 'SR2' }]
+      })
+    }
+  }));
 
 const mockAdminUser = {
   id: 'usr-admin-01',
-  username: 'e.ramesh',
-  name: 'E. Ramesh',
+  username: 'admin',
+  name: 'System Admin',
   role: 'ADMIN',
   department: 'Maintenance Dept.',
-  avatarText: 'ER'
+  avatarText: 'AD'
 };
 
 const mockFacultyUser = {
   id: 'usr-fac-01',
-  username: 'cse.faculty',
-  name: 'Dr. K. Arul',
+  username: 'faculty',
+  name: 'Faculty User',
   role: 'FACULTY',
-  department: 'CSE Department',
-  avatarText: 'KA'
+  department: 'Electrical & Electronics Engineering',
+  avatarText: 'FA'
 };
 
 const renderWithProviders = (
@@ -316,7 +334,7 @@ const renderWithProviders = (
   );
 };
 
-describe('Electrical Stock Monitoring System - MERN Stack Frontend Suite', () => {
+describe('Consumable Stock Management System - MERN Stack Frontend Suite', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
@@ -324,8 +342,8 @@ describe('Electrical Stock Monitoring System - MERN Stack Frontend Suite', () =>
   it('1. Renders Login page with demo credentials and institutional header', () => {
     renderWithProviders(<Login />, { initialRoute: '/login', authenticated: false });
 
-    expect(screen.getByRole('heading', { name: 'Electrical Stock Monitoring System' })).toBeInTheDocument();
-    expect(screen.getByText(/National Engineering College/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Consumable Stock Management System' })).toBeInTheDocument();
+    expect(screen.getByText(/Central Consumable Store/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Username or Email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Login to System/i })).toBeInTheDocument();
@@ -334,7 +352,7 @@ describe('Electrical Stock Monitoring System - MERN Stack Frontend Suite', () =>
   it('2. Protected Route: Redirects unauthenticated users to /login', () => {
     renderWithProviders(<AppRoutes />, { initialRoute: '/dashboard', authenticated: false });
 
-    expect(screen.getByRole('heading', { name: 'Electrical Stock Monitoring System' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Consumable Stock Management System' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Login to System/i })).toBeInTheDocument();
   });
 
@@ -343,7 +361,7 @@ describe('Electrical Stock Monitoring System - MERN Stack Frontend Suite', () =>
 
     await waitFor(() => {
       expect(screen.getByText('Total Products')).toBeInTheDocument();
-      expect(screen.getByText('Current Stock Units')).toBeInTheDocument();
+      expect(screen.getByText('Total Stock Units')).toBeInTheDocument();
       expect(screen.getByText('Pending Indents')).toBeInTheDocument();
     });
   });
@@ -380,10 +398,10 @@ describe('Electrical Stock Monitoring System - MERN Stack Frontend Suite', () =>
   it('7. Indents Page: Renders requisition records and summary metrics', async () => {
     renderWithProviders(<Indents />, { initialRoute: '/indents', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Online Indent Requests' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Online Indent Requisitions' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Total Indents')).toBeInTheDocument();
-      expect(screen.getByText('Pending Approval')).toBeInTheDocument();
+      expect(screen.getByText('Pending Review')).toBeInTheDocument();
     });
   });
 
@@ -420,7 +438,7 @@ describe('Electrical Stock Monitoring System - MERN Stack Frontend Suite', () =>
   it('11. Reports Page: Renders report generator with Excel and PDF export buttons', async () => {
     renderWithProviders(<Reports />, { initialRoute: '/reports', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Institutional Stock Reports' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Consumable Stock Reports' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText(/Export to Excel/i)).toBeInTheDocument();
       expect(screen.getByText(/Download Official PDF/i)).toBeInTheDocument();

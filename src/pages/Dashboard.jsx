@@ -5,6 +5,7 @@ import StatCard from '../components/dashboard/StatCard';
 import StatusBadge from '../components/common/StatusBadge';
 import EmptyState from '../components/common/EmptyState';
 import Loading from '../components/common/Loading';
+import Button from '../components/common/Button';
 import { analyticsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,298 +37,342 @@ export const Dashboard = () => {
 
   if (loading && !data) {
     return (
-      <Layout title="Dashboard" breadcrumb="Overview of electrical stock & inventory status">
-        <Loading message="Loading real-time stock analytics..." />
+      <Layout title={isAdmin ? "Admin Dashboard" : "Faculty Portal"} breadcrumb="Overview">
+        <Loading message="Loading database metrics from MongoDB Atlas..." />
       </Layout>
     );
   }
 
-  const stats = data?.stats || {
-    totalProducts: 0,
-    currentStock: 0,
-    lowStockCount: 0,
-    pendingIndents: 0,
-    todayPurchased: 0,
-    todayTransferred: 0
-  };
-
+  const stats = data?.stats || {};
   const lowStockItems = data?.lowStockItems || [];
   const recentActivity = data?.recentActivity || [];
   const recentIndents = data?.recentIndents || [];
 
+  // ==========================================
+  // FACULTY DASHBOARD VIEW
+  // ==========================================
+  if (!isAdmin) {
+    const myTotal = stats.myTotalRequests || 0;
+    const myPending = stats.myPendingRequests || 0;
+    const myApproved = stats.myApprovedRequests || 0;
+    const myRejected = stats.myRejectedRequests || 0;
+
+    return (
+      <Layout title="Faculty Portal Dashboard" breadcrumb="Department Requisition & Material Overview">
+        {error && (
+          <div className="login-error-box" style={{ marginBottom: '18px' }}>
+            ⚠ {error}
+          </div>
+        )}
+
+        {/* Quick Welcome & Action Banner */}
+        <div
+          className="card card-pad"
+          style={{
+            marginBottom: '22px',
+            background: 'linear-gradient(135deg, var(--navy-900) 0%, var(--blue-700) 100%)',
+            color: 'var(--white)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h2 style={{ color: 'var(--white)', fontSize: '1.25rem', marginBottom: '4px' }}>
+                Welcome, {user?.name || 'Faculty Member'}
+              </h2>
+              <p style={{ color: '#d0e1f9', margin: 0, fontSize: '0.85rem' }}>
+                Department of {user?.department || 'Engineering'} · Browse catalog or submit material indents.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Link to="/faculty/catalog" className="btn-primary" style={{ background: 'var(--white)', color: 'var(--navy-900)', fontWeight: 700 }}>
+                ▦ Browse Catalog
+              </Link>
+              <Link to="/indents/create" className="btn-outline" style={{ borderColor: 'rgba(255,255,255,0.4)', color: 'var(--white)' }}>
+                ＋ Create Indent
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Faculty Specific Metric Cards */}
+        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
+          <StatCard
+            label="My Requisitions"
+            figure={myTotal}
+            icon="▧"
+            variant="blue"
+            onClick={() => navigate('/faculty/requests')}
+          />
+          <StatCard
+            label="Pending Approval"
+            figure={myPending}
+            icon="⏳"
+            variant="amber"
+            onClick={() => navigate('/faculty/requests')}
+          />
+          <StatCard
+            label="Approved & Ready"
+            figure={myApproved}
+            icon="✓"
+            variant="green"
+            onClick={() => navigate('/faculty/requests')}
+          />
+          <StatCard
+            label="Rejected"
+            figure={myRejected}
+            icon="✕"
+            variant="red"
+            onClick={() => navigate('/faculty/requests')}
+          />
+        </div>
+
+        {/* Recent Personal Indents Table */}
+        <div className="section">
+          <div className="section-head">
+            <h2>My Recent Indents</h2>
+            <Link to="/faculty/requests" className="link-subtle">
+              View all my indents ({myTotal}) →
+            </Link>
+          </div>
+
+          <div className="card">
+            {recentIndents.length === 0 ? (
+              <div className="card-pad" style={{ textAlign: 'center' }}>
+                <EmptyState
+                  icon="▧"
+                  title="No indent requests yet"
+                  description="You have not submitted any departmental material requests yet."
+                  action={
+                    <Link to="/faculty/catalog" className="btn-primary">
+                      Browse Product Catalog →
+                    </Link>
+                  }
+                />
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Indent Number</th>
+                      <th>Date</th>
+                      <th>Purpose</th>
+                      <th>Items Count</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentIndents.map((indent) => (
+                      <tr key={indent._id}>
+                        <td className="code" style={{ fontWeight: 700 }}>
+                          <Link to={`/indents/${indent._id || indent.indentNumber}`}>
+                            {indent.indentNumber}
+                          </Link>
+                        </td>
+                        <td>{indent.requestDate || indent.date}</td>
+                        <td style={{ maxWidth: '240px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {indent.purpose}
+                        </td>
+                        <td>{indent.items?.length || 1} item(s)</td>
+                        <td>
+                          <StatusBadge status={indent.status} />
+                        </td>
+                        <td>
+                          <Link to={`/indents/${indent._id || indent.indentNumber}`} className="btn-outline btn-sm">
+                            View Status
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ==========================================
+  // ADMIN DASHBOARD VIEW
+  // ==========================================
+  const totalProducts = stats.totalProducts || 0;
+  const currentStock = stats.currentStock || 0;
+  const lowStockCount = stats.lowStockCount || 0;
+  const pendingIndents = stats.pendingIndents || 0;
+  const todayPurchased = stats.todayPurchased || 0;
+  const todayTransferred = stats.todayTransferred || 0;
+
   return (
-    <Layout title="Dashboard" breadcrumb="Overview of electrical stock & inventory status">
+    <Layout title="Central Store Dashboard" breadcrumb="Consumable Stock & Inventory Analytics">
       {error && (
-        <div className="alert-box" style={{ marginBottom: '18px' }}>
+        <div className="login-error-box" style={{ marginBottom: '18px' }}>
           ⚠ {error}
         </div>
       )}
 
       {/* Dynamic Summary Metric Cards */}
-      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
         <StatCard
           label="Total Products"
-          figure={stats.totalProducts}
+          figure={totalProducts}
           icon="▦"
           variant="blue"
-          onClick={() => navigate('/products')}
+          onClick={() => navigate('/admin/products')}
         />
         <StatCard
-          label="Current Stock Units"
-          figure={stats.currentStock.toLocaleString()}
+          label="Total Stock Units"
+          figure={currentStock.toLocaleString()}
           icon="✓"
           variant="green"
-          onClick={() => navigate('/products')}
+          onClick={() => navigate('/admin/products')}
         />
         <StatCard
           label="Low Stock Items"
-          figure={stats.lowStockCount}
+          figure={lowStockCount}
           icon="!"
           variant="red"
-          onClick={() => navigate(isAdmin ? '/low-stock' : '/products')}
+          onClick={() => navigate('/low-stock')}
         />
         <StatCard
           label="Pending Indents"
-          figure={stats.pendingIndents}
+          figure={pendingIndents}
           icon="▧"
           variant="amber"
-          onClick={() => navigate('/indents')}
+          onClick={() => navigate('/admin/requests')}
         />
-        {isAdmin && (
-          <>
-            <StatCard
-              label="Today's Purchased"
-              figure={`+${stats.todayPurchased}`}
-              icon="↧"
-              variant="green"
-              onClick={() => navigate('/purchases')}
-            />
-            <StatCard
-              label="Today's Transferred"
-              figure={`-${stats.todayTransferred}`}
-              icon="↥"
-              variant="blue"
-              onClick={() => navigate('/transfers')}
-            />
-          </>
-        )}
+        <StatCard
+          label="Today's Purchased"
+          figure={`+${todayPurchased}`}
+          icon="↧"
+          variant="blue"
+          onClick={() => navigate('/purchases')}
+        />
+        <StatCard
+          label="Today's Transferred"
+          figure={`-${todayTransferred}`}
+          icon="↥"
+          variant="amber"
+          onClick={() => navigate('/transfers')}
+        />
       </div>
 
-      {/* Grid: Low Stock Alert Items & Quick Actions / Recent Indents */}
-      <div className="grid-2" style={{ marginBottom: '22px' }}>
-        {/* Low Stock Items Card */}
-        <div className="card">
-          <div className="card-head">
-            <h2>Low Stock Items</h2>
-            {isAdmin && (
-              <Link to="/low-stock" className="small">
-                View all deficits →
-              </Link>
-            )}
-          </div>
-          <div className="table-wrap">
-            {lowStockItems.length === 0 ? (
-              <EmptyState
-                icon="✓"
-                title="All stock levels healthy"
-                description="No items are currently below minimum stock requirements."
-              />
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Stock Register</th>
-                    <th>Available Qty</th>
-                    <th>Minimum Qty</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lowStockItems.map((item) => (
-                    <tr key={item._id || item.id}>
-                      <td>
-                        <Link to={`/products/${item._id || item.id}`} className="cell-strong">
-                          {item.name}
-                        </Link>
-                      </td>
-                      <td>
-                        <span className="badge badge-blue">{item.stockRegister || 'SR1'}</span>
-                      </td>
-                      <td>
-                        <strong style={{ color: 'var(--red-600)' }}>
-                          {item.currentQuantity} {item.unit}
-                        </strong>
-                      </td>
-                      <td>
-                        {item.minimumStockLevel} {item.unit}
-                      </td>
-                      <td>
-                        <StatusBadge status="Low Stock" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Actions & Recent Indents */}
-        <div className="card">
-          <div className="card-head">
-            <h2>{isAdmin ? 'Quick Stock Operations' : 'Department Indent Portal'}</h2>
-          </div>
-          <div className="card-pad" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <p className="small muted">
-              {isAdmin
-                ? 'Record intake purchases, issue stock transfers, or process department online indents:'
-                : `Welcome, ${user?.name}. Raise material requests or track department indents:`}
-            </p>
-
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {isAdmin ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    style={{ flex: 1 }}
-                    onClick={() => navigate('/purchases')}
-                  >
-                    ↧ Record Purchase
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ flex: 1 }}
-                    onClick={() => navigate('/transfers')}
-                  >
-                    ↥ Issue Transfer
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    style={{ flex: 1 }}
-                    onClick={() => navigate('/indents/create')}
-                  >
-                    ＋ Create Online Indent
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ flex: 1 }}
-                    onClick={() => navigate('/indents')}
-                  >
-                    ▧ View My Indents
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '8px' }}>
-                Recent Indent Requests:
-              </div>
-              {recentIndents.length === 0 ? (
-                <div className="small muted">No recent indents submitted.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {recentIndents.slice(0, 3).map((ind) => (
-                    <div
-                      key={ind._id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '0.82rem',
-                        padding: '6px 8px',
-                        background: 'var(--blue-50)',
-                        borderRadius: 'var(--radius-sm)'
-                      }}
-                    >
-                      <div>
-                        <Link to={`/indents/${ind._id}`} style={{ fontWeight: 700 }}>
-                          {ind.indentNumber}
-                        </Link>{' '}
-                        <span style={{ color: 'var(--text-500)', fontSize: '0.74rem' }}>
-                          ({ind.department})
-                        </span>
-                      </div>
-                      <StatusBadge status={ind.status} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Stock Activity (Purchases & Transfers) */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Recent Stock Activity (Purchases & Transfers)</h2>
-          {isAdmin && (
-            <Link to="/history" className="small">
-              View full audit history →
+      <div className="grid-2">
+        {/* Low stock alert panel */}
+        <div className="section">
+          <div className="section-head">
+            <h2>Critical Low Stock Alerts</h2>
+            <Link to="/low-stock" className="link-subtle">
+              View all ({lowStockCount}) →
             </Link>
-          )}
-        </div>
-        <div className="table-wrap">
-          {recentActivity.length === 0 ? (
-            <EmptyState
-              icon="📋"
-              title="No recent transactions"
-              description="Stock purchases and department transfers will appear here."
-            />
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Product</th>
-                  <th>Stock Register</th>
-                  <th>Transaction Type</th>
-                  <th>Quantity</th>
-                  <th>Department / Vendor</th>
-                  <th>Reference ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentActivity.map((txn) => {
-                  const isPurchase = txn.type === 'PURCHASE';
-                  return (
-                    <tr key={txn._id || txn.transactionId}>
-                      <td>{txn.date}</td>
-                      <td>
-                        <Link to={`/products/${txn.productId || txn.productCode}`} className="cell-strong">
-                          {txn.productName}
-                        </Link>
-                      </td>
-                      <td>
-                        <span className="badge badge-blue">{txn.stockRegister || 'SR1'}</span>
-                      </td>
-                      <td>
-                        <span className={isPurchase ? 'tag-in' : 'tag-out'}>
-                          {txn.type}
-                        </span>
-                      </td>
-                      <td>
-                        <strong style={{ color: isPurchase ? 'var(--green-600)' : 'var(--red-600)' }}>
-                          {isPurchase ? `+${txn.quantity}` : `-${txn.quantity}`}
-                        </strong>
-                      </td>
-                      <td>{txn.department}</td>
-                      <td className="code">{txn.referenceId || '—'}</td>
+          </div>
+
+          <div className="card">
+            {lowStockItems.length === 0 ? (
+              <div className="card-pad" style={{ textAlign: 'center' }}>
+                <EmptyState
+                  icon="✓"
+                  title="Stock Levels Healthy"
+                  description="All electrical products are currently above their minimum safety thresholds."
+                />
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th>Current</th>
+                      <th>Min Limit</th>
+                      <th>Status</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+                  </thead>
+                  <tbody>
+                    {lowStockItems.map((item) => (
+                      <tr key={item._id || item.id}>
+                        <td>
+                          <Link to={`/products/${item._id || item.id}`} className="cell-strong">
+                            {item.productName || item.name}
+                          </Link>
+                          <div className="small code">{item.productCode}</div>
+                        </td>
+                        <td>{item.category}</td>
+                        <td>
+                          <strong style={{ color: 'var(--red-600)' }}>
+                            {item.currentQuantity || item.currentStock} {item.unit}
+                          </strong>
+                        </td>
+                        <td>{item.minimumQuantity || item.minStock}</td>
+                        <td>
+                          <StatusBadge status="Low Stock" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Pending / Recent Faculty Indents */}
+        <div className="section">
+          <div className="section-head">
+            <h2>Pending Requisition Indents</h2>
+            <Link to="/admin/requests" className="link-subtle">
+              Manage Indents →
+            </Link>
+          </div>
+
+          <div className="card">
+            {recentIndents.length === 0 ? (
+              <div className="card-pad" style={{ textAlign: 'center' }}>
+                <EmptyState
+                  icon="▧"
+                  title="No Pending Indents"
+                  description="No material requests are currently awaiting store approval."
+                />
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Indent No.</th>
+                      <th>Department</th>
+                      <th>Requester</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentIndents.map((indent) => (
+                      <tr key={indent._id}>
+                        <td className="code" style={{ fontWeight: 700 }}>
+                          <Link to={`/indents/${indent._id}`}>
+                            {indent.indentNumber}
+                          </Link>
+                        </td>
+                        <td>{indent.department}</td>
+                        <td>{indent.requesterName}</td>
+                        <td>
+                          <StatusBadge status={indent.status} />
+                        </td>
+                        <td>
+                          <Link to={`/indents/${indent._id}`} className="btn-outline btn-sm">
+                            Review →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Layout>
