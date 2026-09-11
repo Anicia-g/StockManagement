@@ -23,6 +23,7 @@ import Units from '../pages/Units';
 import StockRegisters from '../pages/StockRegisters';
 import ManageIndents from '../pages/ManageIndents';
 import FacultyRequests from '../pages/FacultyRequests';
+import Notifications from '../pages/Notifications';
 
 export const AppRoutes = () => {
   return (
@@ -118,6 +119,15 @@ export const AppRoutes = () => {
         }
       />
 
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <Notifications />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Admin Only Master Data Routes */}
       <Route
         path="/categories"
@@ -166,6 +176,10 @@ export const AppRoutes = () => {
         }
       />
       <Route
+        path="/purchase"
+        element={<Navigate to="/purchases" replace />}
+      />
+      <Route
         path="/incoming"
         element={<Navigate to="/purchases" replace />}
       />
@@ -177,6 +191,10 @@ export const AppRoutes = () => {
             <Transfer />
           </RoleRoute>
         }
+      />
+      <Route
+        path="/transfer"
+        element={<Navigate to="/transfers" replace />}
       />
       <Route
         path="/outgoing"

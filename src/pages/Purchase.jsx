@@ -50,20 +50,26 @@ export const Purchase = () => {
   }, [fetchPurchases]);
 
   const handlePurchaseSuccess = (result) => {
-    setSuccessToast(`Successfully recorded purchase of ${result.quantity} units for ${result.productName}!`);
+    const qty = result?.quantity || '';
+    const name = result?.productName || '';
+    setSuccessToast(
+      qty && name
+        ? `Purchase recorded successfully: +${qty} units for ${name}.`
+        : 'Purchase recorded successfully.'
+    );
     fetchPurchases();
     setTimeout(() => setSuccessToast(''), 5000);
   };
 
-  const totalSpent = purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
-  const totalItemsReceived = purchases.reduce((sum, p) => sum + (p.quantity || 0), 0);
+  const totalSpent = purchases.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
+  const totalItemsReceived = purchases.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
 
   return (
     <Layout>
       <div className="topbar">
         <div className="topbar-title">
-          <h1>Purchase Intake (Stock IN)</h1>
-          <p>Record newly purchased electrical goods, components, and replenishment stock.</p>
+          <h1>Purchase</h1>
+          <p>Record newly purchased consumable stock and goods received.</p>
         </div>
       </div>
 
@@ -228,16 +234,16 @@ export const Purchase = () => {
                         <th>Product</th>
                         <th>Stock Register</th>
                         <th>Supplier / Vendor</th>
-                        <th>Qty In</th>
+                        <th>Quantity</th>
                         <th>Unit Price</th>
                         <th>Total Value</th>
-                        <th>Received By</th>
+                        <th>Recorded By</th>
                       </tr>
                     </thead>
                     <tbody>
                       {purchases.map((item) => (
                         <tr key={item._id}>
-                          <td style={{ whiteSpace: 'nowrap' }}>{item.purchaseDate}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{item.date || item.purchaseDate}</td>
                           <td className="code" style={{ fontWeight: 700 }}>
                             {item.invoiceNumber || '—'}
                           </td>
@@ -248,18 +254,18 @@ export const Purchase = () => {
                           <td>
                             <span className="badge badge-blue">{item.stockRegister || 'SR1'}</span>
                           </td>
-                          <td>{item.supplierName}</td>
+                          <td>{item.supplier || item.supplierName || '—'}</td>
                           <td>
                             <strong style={{ color: 'var(--green-700)' }}>
                               +{item.quantity} {item.unit || 'Units'}
                             </strong>
                           </td>
-                          <td>₹{(item.unitPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td>₹{(Number(item.unitPrice) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                           <td>
-                            <strong>₹{(item.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                            <strong>₹{(Number(item.totalAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                           </td>
                           <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            {item.receivedBy || 'Store Keeper'}
+                            {item.recordedBy || item.receivedBy || 'Admin'}
                           </td>
                         </tr>
                       ))}

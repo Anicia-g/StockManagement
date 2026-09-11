@@ -3,6 +3,7 @@ import Purchase from '../models/Purchase.js';
 import StockTransaction from '../models/StockTransaction.js';
 import Notification from '../models/Notification.js';
 import { generatePurchaseNumber } from '../utils/codeGenerator.js';
+import { syncProductLowStockNotification } from '../services/stockService.js';
 
 // @desc    Get all purchases with optional filtering
 // @route   GET /api/purchases
@@ -107,13 +108,14 @@ export const recordPurchase = async (req, res, next) => {
       remarks: remarks || ''
     });
 
-    // Create StockTransaction entry
+    // Create StockTransaction entry with PURCHASE transaction type
     await StockTransaction.create({
       transactionId: purchaseId,
-      transactionType: 'IN',
+      transactionType: 'PURCHASE',
       productId: product._id,
       productCode: product.productCode,
       productName: product.productName || product.name,
+      stockRegister: product.stockRegister || 'SR1',
       quantity: qty,
       previousQuantity,
       newQuantity,
@@ -124,11 +126,24 @@ export const recordPurchase = async (req, res, next) => {
       remarks: `Purchase (${supplier || 'Supplier'}) - Invoice: ${invoiceNumber || 'N/A'}. ${remarks || ''}`
     });
 
+    // Update low stock notification status if restocked above minimum
+    await syncProductLowStockNotification(product);
+
     res.status(201).json({
       success: true,
-      message: `Successfully purchased ${qty} ${product.unit} of ${product.productName || product.name}`,
+      message: `Successfully recorded purchase of ${qty} ${product.unit} of ${product.productName || product.name}`,
+      data: {
+        purchase,
+        product,
+        updatedProduct: product,
+        quantity: qty,
+        productName: product.productName || product.name
+      },
       purchase,
-      updatedProduct: product
+      product,
+      updatedProduct: product,
+      quantity: qty,
+      productName: product.productName || product.name
     });
   } catch (error) {
     next(error);

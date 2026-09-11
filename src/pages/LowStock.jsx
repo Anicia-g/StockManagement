@@ -32,9 +32,11 @@ export const LowStock = () => {
     fetchLowStock();
   }, []);
 
+  const getMin = (p) => p.minimumQuantity !== undefined ? p.minimumQuantity : (p.minimumStockLevel !== undefined ? p.minimumStockLevel : (p.minStockLevel || 0));
+
   const sortedLowStock = [...products].sort((a, b) => {
-    const deficitA = (a.minStockLevel || 0) - (a.currentQuantity || 0);
-    const deficitB = (b.minStockLevel || 0) - (b.currentQuantity || 0);
+    const deficitA = getMin(a) - (a.currentQuantity || 0);
+    const deficitB = getMin(b) - (b.currentQuantity || 0);
     return deficitB - deficitA;
   });
 
@@ -46,12 +48,12 @@ export const LowStock = () => {
     <Layout>
       <div className="topbar">
         <div className="topbar-title">
-          <h1>Low Stock & Replenishment Alerts</h1>
-          <p>Inventory items currently below their minimum threshold requiring urgent purchase replenishment.</p>
+          <h1>Low Stock Alerts</h1>
+          <p>Consumable items currently at or below minimum threshold requiring purchase replenishment.</p>
         </div>
         <div className="topbar-actions">
           <Link to="/purchases" className="btn-primary">
-            <span className="icon">↧</span> Record Restock Purchase
+            <span className="icon">↧</span> Record Purchase
           </Link>
         </div>
       </div>
@@ -136,8 +138,9 @@ export const LowStock = () => {
                     </thead>
                     <tbody>
                       {paginatedLowStock.map((product) => {
-                        const deficit = (product.minStockLevel || 0) - (product.currentQuantity || 0);
-                        const isCritical = product.currentQuantity <= Math.floor((product.minStockLevel || 0) / 2);
+                        const minLevel = getMin(product);
+                        const deficit = Math.max(0, minLevel - (product.currentQuantity || 0));
+                        const isCritical = product.currentQuantity <= Math.floor(minLevel / 2);
 
                         return (
                           <tr key={product._id}>
@@ -155,15 +158,15 @@ export const LowStock = () => {
                             </td>
                             <td>
                               <strong style={{ color: 'var(--red-600)', fontSize: '0.95rem' }}>
-                                {product.currentQuantity} {product.unit}
+                                {product.currentQuantity} {product.unit || 'Pieces'}
                               </strong>
                             </td>
                             <td>
-                              {product.minStockLevel} {product.unit}
+                              {minLevel} {product.unit || 'Pieces'}
                             </td>
                             <td>
                               <strong style={{ color: 'var(--red-700)' }}>
-                                −{deficit > 0 ? deficit : 0} {product.unit}
+                                −{deficit} {product.unit || 'Pieces'}
                               </strong>
                             </td>
                             <td>
@@ -171,10 +174,11 @@ export const LowStock = () => {
                             </td>
                             <td>
                               <Link
-                                to={`/purchases?productCode=${product.productCode}`}
-                                className="btn-outline btn-sm"
+                                to={`/purchases?productCode=${encodeURIComponent(product.productCode)}&productId=${product._id}`}
+                                className="btn-primary btn-sm"
+                                style={{ whiteSpace: 'nowrap' }}
                               >
-                                Restock Now
+                                Record Restock Purchase
                               </Link>
                             </td>
                           </tr>

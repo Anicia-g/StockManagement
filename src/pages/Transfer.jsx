@@ -65,19 +65,26 @@ export const Transfer = () => {
   }, [fetchTransfers]);
 
   const handleTransferSuccess = (result) => {
-    setSuccessToast(`Successfully issued ${result.quantity} units of ${result.productName} to ${result.department}!`);
+    const qty = result?.quantity || '';
+    const name = result?.productName || '';
+    const dept = typeof result?.department === 'string' ? result.department : (result?.department?.name || '');
+    setSuccessToast(
+      qty && name
+        ? `Transfer recorded successfully: -${qty} units of ${name}${dept ? ' to ' + dept : ''}.`
+        : 'Transfer recorded successfully.'
+    );
     fetchTransfers();
     setTimeout(() => setSuccessToast(''), 5000);
   };
 
-  const totalUnitsTransferred = transfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
+  const totalUnitsTransferred = transfers.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
 
   return (
     <Layout>
       <div className="topbar">
         <div className="topbar-title">
-          <h1>Stock Transfer / Issue (Stock OUT)</h1>
-          <p>Directly issue materials or fulfill department requisitions with live stock deduction.</p>
+          <h1>Transfer</h1>
+          <p>Record stock transfers and material issues to departments.</p>
         </div>
       </div>
 
@@ -154,14 +161,14 @@ export const Transfer = () => {
 
             <div className="card">
               <div className="card-head">
-                <span className="card-title">Stock Outflow Policy</span>
+                <span className="card-title">Stock Transfer Policy</span>
               </div>
               <div className="card-body" style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                 <ul style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <li>Transferring stock immediately decreases current warehouse inventory.</li>
+                  <li>Transferring stock immediately decreases current store inventory.</li>
                   <li>Cannot transfer more quantity than currently available in store.</li>
-                  <li>Online faculty requisitions should be reviewed and approved via the <strong>Indent Requests</strong> page.</li>
-                  <li>All outgoing items are recorded in the <strong>Stock History</strong> audit log with department tags.</li>
+                  <li>Department requisitions should be reviewed and approved via the <strong>Manage Indents</strong> page.</li>
+                  <li>All transferred items are recorded in <strong>Stock History</strong> with receiving department tags.</li>
                 </ul>
               </div>
             </div>
@@ -171,7 +178,7 @@ export const Transfer = () => {
         {/* Transfer History Table */}
         <div className="card">
           <div className="card-head" style={{ flexWrap: 'wrap', gap: '12px' }}>
-            <span className="card-title">Recent Outgoing Transfer Logs</span>
+            <span className="card-title">Recent Transfer Logs</span>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <input
                 type="text"
@@ -198,8 +205,8 @@ export const Transfer = () => {
               >
                 <option value="">All Departments</option>
                 {departments.map((d) => (
-                  <option key={d._id || d.name} value={d.name}>
-                    {d.name}
+                  <option key={d._id || d.name || d} value={d.name || d}>
+                    {d.name || d}
                   </option>
                 ))}
               </select>
@@ -225,7 +232,7 @@ export const Transfer = () => {
                         <th>Department / Lab</th>
                         <th>Product</th>
                         <th>Stock Register</th>
-                        <th>Qty Issued</th>
+                        <th>Quantity</th>
                         <th>Indent Reference</th>
                         <th>Issued By</th>
                         <th>Purpose / Remarks</th>
@@ -234,9 +241,9 @@ export const Transfer = () => {
                     <tbody>
                       {transfers.map((item) => (
                         <tr key={item._id}>
-                          <td style={{ whiteSpace: 'nowrap' }}>{item.transferDate}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{item.date || item.transferDate}</td>
                           <td>
-                            <strong>{item.department}</strong>
+                            <strong>{typeof item.department === 'object' ? (item.department?.name || '—') : (item.department || '—')}</strong>
                             {item.receivedByPerson && (
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                 Req by: {item.receivedByPerson}
@@ -251,7 +258,7 @@ export const Transfer = () => {
                             <span className="badge badge-blue">{item.stockRegister || 'SR1'}</span>
                           </td>
                           <td>
-                            <strong style={{ color: 'var(--amber-700)' }}>
+                            <strong style={{ color: 'var(--blue-700)' }}>
                               -{item.quantity} {item.unit || 'Units'}
                             </strong>
                           </td>

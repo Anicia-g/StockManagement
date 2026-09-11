@@ -119,7 +119,7 @@ export const getReportData = async (req, res, next) => {
 
       case 'HISTORY':
       default: {
-        title = 'Complete Stock Movement Audit Report';
+        title = 'Complete Stock Movement Report';
         let query = {};
         if (startDate && endDate) query.date = { $gte: startDate, $lte: endDate };
         if (department && department !== 'ALL') query.department = { $regex: department, $options: 'i' };
@@ -129,9 +129,9 @@ export const getReportData = async (req, res, next) => {
           date: h.date,
           productCode: h.productCode,
           productName: h.productName,
-          stockRegister: h.stockRegister,
-          type: h.type,
-          quantity: h.quantity,
+          stockRegister: h.stockRegister || 'SR1',
+          type: h.type === 'IN' ? 'PURCHASE' : (h.type === 'OUT' ? 'TRANSFER' : (h.type || 'PURCHASE')),
+          quantity: Math.abs(h.quantity),
           previousQuantity: h.previousQuantity,
           newQuantity: h.newQuantity,
           department: h.department,

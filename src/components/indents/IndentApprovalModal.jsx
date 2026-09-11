@@ -16,15 +16,18 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
   useEffect(() => {
     if (indent && indent.items) {
       // Default each item approved quantity to min(requestedQuantity, availableStock)
-      const initialApproved = indent.items.map((item) => ({
-        productId: item.productId,
-        productCode: item.productCode,
-        productName: item.productName,
-        requestedQuantity: item.requestedQuantity,
-        approvedQuantity: item.requestedQuantity,
-        stockRegister: item.stockRegister || 'SR1',
-        unit: item.unit || 'Pieces'
-      }));
+      const initialApproved = indent.items.map((item) => {
+        const reqQty = item.requestedQuantity !== undefined ? item.requestedQuantity : (item.quantityRequired || 0);
+        return {
+          productId: item.productId,
+          productCode: item.productCode,
+          productName: item.productName,
+          requestedQuantity: reqQty,
+          approvedQuantity: reqQty,
+          stockRegister: item.stockRegister || 'SR1',
+          unit: item.unit || 'Pieces'
+        };
+      });
       setApprovedItems(initialApproved);
       setError('');
 
@@ -56,8 +59,9 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
 
   const handleSetMaxAvailable = (index) => {
     const item = indent.items[index];
-    const liveAvailable = liveStockMap[item.productId] !== undefined ? liveStockMap[item.productId] : item.availableQuantityAtRequest;
-    const maxPossible = Math.min(item.requestedQuantity, liveAvailable);
+    const reqQty = item.requestedQuantity !== undefined ? item.requestedQuantity : (item.quantityRequired || 0);
+    const liveAvailable = liveStockMap[item.productId] !== undefined ? liveStockMap[item.productId] : (item.availableQuantityAtRequest || 0);
+    const maxPossible = Math.min(reqQty, liveAvailable);
     handleApprovedQtyChange(index, maxPossible);
   };
 
@@ -145,11 +149,12 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
             </thead>
             <tbody>
               {indent.items?.map((item, idx) => {
+                const reqQty = item.requestedQuantity !== undefined ? item.requestedQuantity : (item.quantityRequired || 0);
                 const liveAvailable =
                   liveStockMap[item.productId] !== undefined
                     ? liveStockMap[item.productId]
-                    : item.availableQuantityAtRequest;
-                const approvedQty = approvedItems[idx]?.approvedQuantity ?? item.requestedQuantity;
+                    : (item.availableQuantityAtRequest || 0);
+                const approvedQty = approvedItems[idx]?.approvedQuantity ?? reqQty;
                 const isOverStock = approvedQty > liveAvailable;
 
                 return (
@@ -163,12 +168,12 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
                     </td>
                     <td>
                       <strong style={{ color: liveAvailable === 0 ? 'var(--red-600)' : 'inherit' }}>
-                        {liveAvailable} {item.unit}
+                        {liveAvailable} {item.unit || 'Pieces'}
                       </strong>
                     </td>
                     <td>
                       <strong>
-                        {item.requestedQuantity} {item.unit}
+                        {reqQty} {item.unit || 'Pieces'}
                       </strong>
                     </td>
                     <td style={{ width: '130px' }}>

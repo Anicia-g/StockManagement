@@ -4,7 +4,7 @@ import { verifyToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/', verifyToken, getTransfers);
+router.get('/', verifyToken, requireAdmin, getTransfers);
 router.post('/', verifyToken, requireAdmin, issueTransfer);
 
 export default router;

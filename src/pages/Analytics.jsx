@@ -69,12 +69,12 @@ export const Analytics = () => {
   return (
     <Layout
       title="Stock & Movement Analytics"
-      breadcrumb="Store Analytics / Inventory & Inflow-Outflow"
+      breadcrumb="Analytics / Movement & Distribution"
     >
       <div className="section" style={{ marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Consumable Stock Analytics</h1>
+        <h1 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Stock & Movement Analytics</h1>
         <p style={{ color: 'var(--text-500)', margin: 0, fontSize: '0.84rem' }}>
-          Real-time metrics computed directly from MongoDB Atlas across all consumable items, physical registers, and transactions.
+          Real-time analytics based on MongoDB data.
         </p>
       </div>
 
@@ -87,7 +87,7 @@ export const Analytics = () => {
         </div>
 
         <div className="metric-card">
-          <div className="metric-label">Monthly Purchases (IN)</div>
+          <div className="metric-label">Monthly Purchases</div>
           <div className="metric-value" style={{ color: 'var(--green-700)' }}>
             +{(purchases.monthlyPurchases || 0).toLocaleString('en-IN')}
           </div>
@@ -95,7 +95,7 @@ export const Analytics = () => {
         </div>
 
         <div className="metric-card">
-          <div className="metric-label">Monthly Transfers (OUT)</div>
+          <div className="metric-label">Monthly Transfers</div>
           <div className="metric-value" style={{ color: 'var(--amber-700)' }}>
             -{(transfers.monthlyTransfers || 0).toLocaleString('en-IN')}
           </div>
@@ -121,9 +121,9 @@ export const Analytics = () => {
       {/* Chart Row 1: 14-Day Purchase vs Transfer Trend */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <div className="card-head">
-          <span className="card-title">Stock Flow Trends (14-Day Inflow vs Outflow)</span>
+          <span className="card-title">Stock Movement Trends (14 Days)</span>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Daily unit volume of recorded purchases (IN) vs department transfers (OUT)
+            Daily volume of recorded purchases and department transfers
           </span>
         </div>
         <div className="card-body" style={{ height: '320px', padding: '16px 20px' }}>
@@ -142,8 +142,8 @@ export const Analytics = () => {
                 }}
               />
               <Legend />
-              <Bar dataKey="purchases" name="Purchases (Stock IN)" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="transfers" name="Transfers (Stock OUT)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="purchases" name="Purchases" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="transfers" name="Transfers" fill="#f59e0b" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

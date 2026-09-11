@@ -24,6 +24,11 @@ const stockTransactionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  stockRegister: {
+    type: String,
+    trim: true,
+    default: 'SR1'
+  },
   quantity: {
     type: Number,
     required: true,

@@ -36,7 +36,10 @@ export const StockHistoryTable = ({ transactions = [] }) => {
         </thead>
         <tbody>
           {transactions.map((txn) => {
-            const isPurchase = txn.type === 'PURCHASE';
+            const rawType = (txn.type || txn.transactionType || '').toUpperCase();
+            const isPurchase = rawType === 'PURCHASE' || rawType === 'IN';
+            const typeLabel = isPurchase ? 'Purchase' : 'Transfer';
+            const qty = Math.abs(txn.quantity);
 
             return (
               <tr key={txn._id || txn.transactionId}>
@@ -57,13 +60,24 @@ export const StockHistoryTable = ({ transactions = [] }) => {
                   <span className="badge badge-blue">{txn.stockRegister || 'SR1'}</span>
                 </td>
                 <td>
-                  <span className={isPurchase ? 'tag-in' : 'tag-out'}>
-                    {txn.type}
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      background: isPurchase ? '#ecfdf5' : '#eff6ff',
+                      color: isPurchase ? '#047857' : '#1d4ed8',
+                      border: isPurchase ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
+                    }}
+                  >
+                    {typeLabel}
                   </span>
                 </td>
                 <td>
-                  <strong style={{ color: isPurchase ? 'var(--green-600)' : 'var(--red-600)' }}>
-                    {isPurchase ? `+${txn.quantity}` : `-${txn.quantity}`}
+                  <strong style={{ color: isPurchase ? 'var(--green-600)' : 'var(--blue-600)' }}>
+                    {isPurchase ? `+${qty}` : `-${qty}`}
                   </strong>
                 </td>
                 <td>{txn.previousQuantity !== undefined ? txn.previousQuantity : '—'}</td>

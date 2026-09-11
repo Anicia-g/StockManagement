@@ -1100,7 +1100,8 @@ td.code, .mono {
   animation: fadeIn 0.15s ease-out;
 }
 
-.modal-container {
+.modal-container,
+.modal {
   background: var(--white);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
@@ -1126,7 +1127,8 @@ td.code, .mono {
   font-size: 1.15rem;
 }
 
-.modal-close {
+.modal-close,
+.close-btn {
   background: transparent;
   border: none;
   font-size: 20px;

@@ -262,10 +262,11 @@ const seedDatabase = async () => {
     for (const prod of products) {
       await StockTransaction.create({
         transactionId: `TXN-INIT-${prod.productCode}`,
-        transactionType: 'IN',
+        transactionType: 'PURCHASE',
         productId: prod._id,
         productCode: prod.productCode,
         productName: prod.productName,
+        stockRegister: prod.stockRegister || 'SR1',
         quantity: prod.currentQuantity,
         previousQuantity: 0,
         newQuantity: prod.currentQuantity,
@@ -297,6 +298,22 @@ const seedDatabase = async () => {
       remarks: 'Replenishment for main corridor fixtures'
     });
 
+    await StockTransaction.create({
+      transactionId: 'TXN-PUR-0001',
+      transactionType: 'PURCHASE',
+      productId: bulbProd._id,
+      productCode: bulbProd.productCode,
+      productName: bulbProd.productName,
+      stockRegister: bulbProd.stockRegister,
+      quantity: 10,
+      previousQuantity: bulbProd.currentQuantity,
+      newQuantity: bulbProd.currentQuantity + 10,
+      department: 'Store',
+      date: today,
+      remarks: 'Purchase recorded: National Electrical Supplies',
+      recordedBy: 'System Admin'
+    });
+
     console.log('10. Seeding Recorded Physical Transfer (TRF-0001)...');
     const tapeProd = products.find(p => p.productCode === 'CON-0006');
     await Transfer.create({
@@ -316,6 +333,22 @@ const seedDatabase = async () => {
       issuedBy: 'System Admin',
       purpose: 'Lab wiring maintenance',
       remarks: 'Issued for bench rewiring'
+    });
+
+    await StockTransaction.create({
+      transactionId: 'TXN-TRF-0001',
+      transactionType: 'TRANSFER',
+      productId: tapeProd._id,
+      productCode: tapeProd.productCode,
+      productName: tapeProd.productName,
+      stockRegister: tapeProd.stockRegister,
+      quantity: 5,
+      previousQuantity: tapeProd.currentQuantity,
+      newQuantity: Math.max(0, tapeProd.currentQuantity - 5),
+      department: 'Electrical & Electronics Engineering',
+      date: today,
+      remarks: 'Stock issued to Electrical & Electronics Engineering',
+      recordedBy: 'System Admin'
     });
 
     console.log('11. Seeding Sample Faculty Indent (IND-0001)...');

@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Button from '../common/Button';
 import { productApi, purchaseApi } from '../../services/api';
 import { useNotifications } from '../../context/NotificationContext';
 
-export const PurchaseForm = ({ onPurchaseCompleted = null }) => {
+export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = null }) => {
+  const [searchParams] = useSearchParams();
+  const preselectedProductCode = searchParams.get('productCode');
+  const preselectedProductId = searchParams.get('productId');
+
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -22,16 +26,40 @@ export const PurchaseForm = ({ onPurchaseCompleted = null }) => {
     const loadProducts = async () => {
       try {
         const res = await productApi.getProducts();
-        if (res.success && res.products.length > 0) {
+        if (res.success && res.products && res.products.length > 0) {
           setProducts(res.products);
-          setSelectedProductId(res.products[0]._id);
+          // Check if productCode or productId matches URL param
+          const matched = res.products.find(
+            (p) =>
+              (preselectedProductId && String(p._id) === String(preselectedProductId)) ||
+              (preselectedProductCode && p.productCode === preselectedProductCode)
+          );
+          if (matched) {
+            setSelectedProductId(matched._id);
+          } else {
+            setSelectedProductId(res.products[0]._id);
+          }
         }
       } catch (err) {
         console.error('Failed to load products for purchase:', err);
       }
     };
     loadProducts();
-  }, []);
+  }, [preselectedProductCode, preselectedProductId]);
+
+  // Sync if URL search parameters change dynamically
+  useEffect(() => {
+    if (products.length > 0 && (preselectedProductId || preselectedProductCode)) {
+      const matched = products.find(
+        (p) =>
+          (preselectedProductId && String(p._id) === String(preselectedProductId)) ||
+          (preselectedProductCode && p.productCode === preselectedProductCode)
+      );
+      if (matched) {
+        setSelectedProductId(matched._id);
+      }
+    }
+  }, [preselectedProductCode, preselectedProductId, products]);
 
   const selectedProduct = products.find((p) => p._id === selectedProductId);
   const currentStock = selectedProduct ? selectedProduct.currentQuantity : 0;
@@ -65,22 +93,47 @@ export const PurchaseForm = ({ onPurchaseCompleted = null }) => {
       if (res.success) {
         setFeedback({
           type: 'success',
-          message: res.message
+          message: res.message || 'Purchase recorded successfully.'
         });
 
-        // Update local product currentQuantity
+        const newStockVal =
+          res.data?.product?.currentQuantity ??
+          res.product?.newQuantity ??
+          res.updatedProduct?.currentQuantity ??
+          (currentStock + numQty);
+
         setProducts((prev) =>
           prev.map((p) =>
-            p._id === selectedProductId ? { ...p, currentQuantity: res.product.newQuantity } : p
+            p._id === selectedProductId ? { ...p, currentQuantity: newStockVal } : p
           )
         );
 
-        fetchNotifications();
-        if (onPurchaseCompleted) onPurchaseCompleted(res.purchase);
+        if (typeof fetchNotifications === 'function') {
+          fetchNotifications();
+        }
 
-        setQuantity(0);
+        const purchaseRecord = res.data?.purchase || res.purchase || {
+          quantity: numQty,
+          productName: selectedProduct?.productName || selectedProduct?.name
+        };
+
+        const cb = onPurchaseSuccess || onPurchaseCompleted;
+        if (typeof cb === 'function') {
+          try {
+            cb(purchaseRecord);
+          } catch (errCb) {
+            console.error('Error in onPurchaseSuccess callback:', errCb);
+          }
+        }
+
+        setQuantity('');
         setInvoiceNumber('');
         setRemarks('');
+      } else {
+        setFeedback({
+          type: 'error',
+          message: res.message || 'Failed to record purchase.'
+        });
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to record purchase.';

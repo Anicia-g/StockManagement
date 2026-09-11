@@ -56,29 +56,30 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
           {/* FACULTY SECTION */}
           {!isAdmin && (
             <>
-              <div className="nav-label">Store Catalog & Requisitions</div>
+              <div className="nav-label">Catalog & Requisitions</div>
               <NavLink
-                to="/faculty/catalog"
+                to="/products"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">▦</span> Product Catalog
+                <span className="icon">▦</span> Products
               </NavLink>
 
               <NavLink
-                to="/indents/create"
+                to="/indents"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">＋</span> Create Indent
+                <span className="icon">📋</span> Manage Indents
               </NavLink>
 
               <NavLink
-                to="/faculty/requests"
+                to="/notifications"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">▧</span> My Indent Requests
+                <span className="icon">🔔</span> Notifications
+                {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
               </NavLink>
             </>
           )}
@@ -86,7 +87,7 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
           {/* ADMIN SECTION */}
           {isAdmin && (
             <>
-              <div className="nav-label">Inventory & Movements</div>
+              <div className="nav-label">Inventory & Stock</div>
               <NavLink
                 to="/products"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
@@ -100,7 +101,7 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">↧</span> Record Purchase (IN)
+                <span className="icon">↧</span> Purchase
               </NavLink>
 
               <NavLink
@@ -108,7 +109,7 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">↥</span> Record Transfer (OUT)
+                <span className="icon">↥</span> Transfer
               </NavLink>
 
               <NavLink
@@ -124,7 +125,7 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">!</span> Low Stock Alerts
+                <span className="icon">⚠</span> Low Stock Alerts
                 {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
               </NavLink>
 
@@ -150,10 +151,10 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">📖</span> Stock Registers (SR/CSSR)
+                <span className="icon">📖</span> Stock Registers
               </NavLink>
 
-              <div className="nav-label">Requisitions & Approvals</div>
+              <div className="nav-label">Requisitions & Management</div>
               <NavLink
                 to="/manage-indents"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
@@ -162,13 +163,12 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 <span className="icon">📋</span> Manage Indents
               </NavLink>
 
-              <div className="nav-label">Analytics & Reports</div>
               <NavLink
                 to="/analytics"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">📈</span> Stock Analytics
+                <span className="icon">📈</span> Analytics
               </NavLink>
 
               <NavLink
@@ -176,7 +176,16 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={handleLinkClick}
               >
-                <span className="icon">📄</span> Reports & Export
+                <span className="icon">📄</span> Reports
+              </NavLink>
+
+              <NavLink
+                to="/notifications"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={handleLinkClick}
+              >
+                <span className="icon">🔔</span> Notifications
+                {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
               </NavLink>
             </>
           )}

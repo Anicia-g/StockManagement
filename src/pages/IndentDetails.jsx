@@ -68,6 +68,7 @@ export const IndentDetails = () => {
     );
   }
 
+  const isPending = indent.status === 'SUBMITTED' || indent.status === 'PENDING' || indent.status === 'DRAFT';
   const canReview = isAdmin && ['SUBMITTED', 'PENDING', 'RECOMMENDED'].includes(indent.status);
 
   return (
@@ -372,48 +373,53 @@ export const IndentDetails = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {indent.items?.map((item, index) => (
-                    <tr key={index}>
-                      <td style={{ fontWeight: 600 }}>{index + 1}</td>
-                      <td>
-                        <div className="cell-strong">{item.productName}</div>
-                        <span className="code">{item.productCode}</span>
-                      </td>
-                      <td>
-                        <span className="badge badge-blue">{item.stockRegister || 'SR1'}</span>
-                      </td>
-                      <td>
-                        <strong>
-                          {item.requestedQuantity} {item.unit}
-                        </strong>
-                      </td>
-                      <td>
-                        <strong
-                          style={{
-                            color:
-                              item.approvedQuantity > 0
-                                ? 'var(--green-700)'
-                                : isPending
-                                ? 'var(--text-muted)'
-                                : 'var(--red-600)'
-                          }}
-                        >
-                          {isPending ? '—' : `${item.approvedQuantity} ${item.unit}`}
-                        </strong>
-                      </td>
-                      <td>
-                        {isPending ? (
-                          <span className="badge badge-amber">Awaiting Review</span>
-                        ) : item.approvedQuantity === item.requestedQuantity ? (
-                          <span className="badge badge-green">Fully Approved</span>
-                        ) : item.approvedQuantity > 0 ? (
-                          <span className="badge badge-amber">Partially Approved</span>
-                        ) : (
-                          <span className="badge badge-red">Rejected</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {indent.items?.map((item, index) => {
+                    const reqQty = item.requestedQuantity !== undefined ? item.requestedQuantity : (item.quantityRequired || 0);
+                    const appQty = item.approvedQuantity !== undefined ? item.approvedQuantity : (item.quantityApproved || 0);
+
+                    return (
+                      <tr key={index}>
+                        <td style={{ fontWeight: 600 }}>{index + 1}</td>
+                        <td>
+                          <div className="cell-strong">{item.productName}</div>
+                          <span className="code">{item.productCode}</span>
+                        </td>
+                        <td>
+                          <span className="badge badge-blue">{item.stockRegister || 'SR1'}</span>
+                        </td>
+                        <td>
+                          <strong>
+                            {reqQty} {item.unit || 'Pieces'}
+                          </strong>
+                        </td>
+                        <td>
+                          <strong
+                            style={{
+                              color:
+                                appQty > 0
+                                  ? 'var(--green-700)'
+                                  : isPending
+                                  ? 'var(--text-muted)'
+                                  : 'var(--red-600)'
+                            }}
+                          >
+                            {isPending ? '—' : `${appQty} ${item.unit || 'Pieces'}`}
+                          </strong>
+                        </td>
+                        <td>
+                          {isPending ? (
+                            <span className="badge badge-amber">Awaiting Review</span>
+                          ) : appQty === reqQty && appQty > 0 ? (
+                            <span className="badge badge-green">Fully Approved</span>
+                          ) : appQty > 0 ? (
+                            <span className="badge badge-amber">Partially Approved</span>
+                          ) : (
+                            <span className="badge badge-red">Rejected</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

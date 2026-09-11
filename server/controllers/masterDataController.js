@@ -2,6 +2,8 @@ import Department from '../models/Department.js';
 import Category from '../models/Category.js';
 import Unit from '../models/Unit.js';
 import StockDocument from '../models/StockDocument.js';
+import Product from '../models/Product.js';
+import ProductDocumentReference from '../models/ProductDocumentReference.js';
 
 // ==========================================
 // Departments
@@ -151,12 +153,18 @@ export const getCategories = async (req, res, next) => {
 export const createCategory = async (req, res, next) => {
   try {
     const { name, description } = req.body;
-    if (!name) {
+    if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Category name is required.' });
     }
 
+    const trimmedName = name.trim();
+    const existing = await Category.findOne({ name: { $regex: `^${trimmedName}$`, $options: 'i' } });
+    if (existing) {
+      return res.status(409).json({ success: false, message: `Category "${trimmedName}" already exists.` });
+    }
+
     const cat = await Category.create({
-      name: name.trim(),
+      name: trimmedName,
       description: description || ''
     });
 
@@ -171,7 +179,17 @@ export const updateCategory = async (req, res, next) => {
     const { id } = req.params;
     const { name, description, active } = req.body;
     const updates = {};
-    if (name !== undefined) updates.name = name.trim();
+    if (name !== undefined) {
+      const trimmedName = name.trim();
+      const existing = await Category.findOne({
+        _id: { $ne: id },
+        name: { $regex: `^${trimmedName}$`, $options: 'i' }
+      });
+      if (existing) {
+        return res.status(409).json({ success: false, message: `Another category named "${trimmedName}" already exists.` });
+      }
+      updates.name = trimmedName;
+    }
     if (description !== undefined) updates.description = description;
     if (active !== undefined) updates.active = Boolean(active);
 
@@ -188,11 +206,24 @@ export const updateCategory = async (req, res, next) => {
 export const deleteCategory = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const cat = await Category.findByIdAndDelete(id);
+    const cat = await Category.findById(id);
     if (!cat) {
       return res.status(404).json({ success: false, message: 'Category not found.' });
     }
-    res.json({ success: true, message: 'Category deleted successfully.' });
+
+    // Safe dependency check
+    const productCount = await Product.countDocuments({
+      $or: [{ category: cat.name }, { categoryId: cat._id }]
+    });
+    if (productCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete category "${cat.name}". It is currently assigned to ${productCount} product(s). Please reassign or remove those products first.`
+      });
+    }
+
+    await Category.findByIdAndDelete(id);
+    res.json({ success: true, message: `Category "${cat.name}" deleted successfully.` });
   } catch (error) {
     next(error);
   }
@@ -249,12 +280,18 @@ export const getUnits = async (req, res, next) => {
 export const createUnit = async (req, res, next) => {
   try {
     const { name, symbol } = req.body;
-    if (!name) {
+    if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Unit name is required.' });
     }
 
+    const trimmedName = name.trim();
+    const existing = await Unit.findOne({ name: { $regex: `^${trimmedName}$`, $options: 'i' } });
+    if (existing) {
+      return res.status(409).json({ success: false, message: `Unit "${trimmedName}" already exists.` });
+    }
+
     const unit = await Unit.create({
-      name: name.trim(),
+      name: trimmedName,
       symbol: (symbol || '').trim()
     });
 
@@ -269,7 +306,17 @@ export const updateUnit = async (req, res, next) => {
     const { id } = req.params;
     const { name, symbol, active } = req.body;
     const updates = {};
-    if (name !== undefined) updates.name = name.trim();
+    if (name !== undefined) {
+      const trimmedName = name.trim();
+      const existing = await Unit.findOne({
+        _id: { $ne: id },
+        name: { $regex: `^${trimmedName}$`, $options: 'i' }
+      });
+      if (existing) {
+        return res.status(409).json({ success: false, message: `Another unit named "${trimmedName}" already exists.` });
+      }
+      updates.name = trimmedName;
+    }
     if (symbol !== undefined) updates.symbol = symbol.trim();
     if (active !== undefined) updates.active = Boolean(active);
 
@@ -286,11 +333,24 @@ export const updateUnit = async (req, res, next) => {
 export const deleteUnit = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const unit = await Unit.findByIdAndDelete(id);
+    const unit = await Unit.findById(id);
     if (!unit) {
       return res.status(404).json({ success: false, message: 'Unit not found.' });
     }
-    res.json({ success: true, message: 'Unit deleted successfully.' });
+
+    // Safe dependency check
+    const productCount = await Product.countDocuments({
+      $or: [{ unit: unit.name }, { unitId: unit._id }]
+    });
+    if (productCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete unit "${unit.name}". It is currently assigned to ${productCount} product(s). Please reassign those products first.`
+      });
+    }
+
+    await Unit.findByIdAndDelete(id);
+    res.json({ success: true, message: `Unit "${unit.name}" deleted successfully.` });
   } catch (error) {
     next(error);
   }
@@ -349,12 +409,18 @@ export const getStockDocuments = async (req, res, next) => {
 export const createStockDocument = async (req, res, next) => {
   try {
     const { name, description } = req.body;
-    if (!name) {
-      return res.status(400).json({ success: false, message: 'Stock document register name is required.' });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Stock document register code/name is required.' });
+    }
+
+    const trimmedName = name.trim().toUpperCase();
+    const existing = await StockDocument.findOne({ name: { $regex: `^${trimmedName}$`, $options: 'i' } });
+    if (existing) {
+      return res.status(409).json({ success: false, message: `Stock register "${trimmedName}" already exists.` });
     }
 
     const doc = await StockDocument.create({
-      name: name.trim().toUpperCase(),
+      name: trimmedName,
       description: description || ''
     });
 
@@ -369,7 +435,17 @@ export const updateStockDocument = async (req, res, next) => {
     const { id } = req.params;
     const { name, description, active } = req.body;
     const updates = {};
-    if (name !== undefined) updates.name = name.trim().toUpperCase();
+    if (name !== undefined) {
+      const trimmedName = name.trim().toUpperCase();
+      const existing = await StockDocument.findOne({
+        _id: { $ne: id },
+        name: { $regex: `^${trimmedName}$`, $options: 'i' }
+      });
+      if (existing) {
+        return res.status(409).json({ success: false, message: `Another stock register named "${trimmedName}" already exists.` });
+      }
+      updates.name = trimmedName;
+    }
     if (description !== undefined) updates.description = description;
     if (active !== undefined) updates.active = Boolean(active);
 
@@ -386,11 +462,31 @@ export const updateStockDocument = async (req, res, next) => {
 export const deleteStockDocument = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const doc = await StockDocument.findByIdAndDelete(id);
+    const doc = await StockDocument.findById(id);
     if (!doc) {
       return res.status(404).json({ success: false, message: 'Stock register document not found.' });
     }
-    res.json({ success: true, message: 'Stock register document deleted successfully.' });
+
+    // Safe dependency check
+    const productCount = await Product.countDocuments({
+      $or: [
+        { stockRegister: doc.name },
+        { 'registerRefs.sheet': doc.name }
+      ]
+    });
+    const refCount = await ProductDocumentReference.countDocuments({
+      $or: [{ stockDocumentName: doc.name }, { stockDocumentId: doc._id }]
+    });
+
+    if (productCount > 0 || refCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete stock register "${doc.name}". It is referenced by ${productCount || refCount} product record(s). Please update those product register page entries first.`
+      });
+    }
+
+    await StockDocument.findByIdAndDelete(id);
+    res.json({ success: true, message: `Stock register "${doc.name}" deleted successfully.` });
   } catch (error) {
     next(error);
   }

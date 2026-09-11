@@ -140,7 +140,7 @@ productSchema.pre('save', function (next) {
 // Virtual for low stock status and derived status
 productSchema.virtual('stockStatus').get(function () {
   const min = this.minimumQuantity !== undefined ? this.minimumQuantity : this.minimumStockLevel;
-  return this.currentQuantity < min ? 'LOW_STOCK' : 'AVAILABLE';
+  return this.currentQuantity <= min ? 'LOW_STOCK' : 'AVAILABLE';
 });
 
 productSchema.virtual('isLowStock').get(function () {

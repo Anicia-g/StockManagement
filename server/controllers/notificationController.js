@@ -5,33 +5,8 @@ import Product from '../models/Product.js';
 // @route   GET /api/notifications
 export const getNotifications = async (req, res, next) => {
   try {
-    // If Admin, ensure low stock notifications exist for any low-stock products in MongoDB
-    if (req.user && req.user.role === 'ADMIN') {
-      const lowStockProducts = await Product.find({
-        active: { $ne: false },
-        $expr: { $lte: ['$currentQuantity', { $ifNull: ['$minimumQuantity', '$minimumStockLevel'] }] }
-      });
 
-      for (const p of lowStockProducts) {
-        const min = p.minimumQuantity !== undefined ? p.minimumQuantity : (p.minimumStockLevel || 5);
-        const exists = await Notification.findOne({
-          type: 'LOW_STOCK',
-          referenceId: p.productCode,
-          isRead: false
-        });
-        if (!exists) {
-          await Notification.create({
-            title: 'Low Stock Alert',
-            message: `Product "${p.productName || p.name}" (${p.productCode}) is at or below minimum stock level (${p.currentQuantity} ${p.unit} remaining, Minimum: ${min}).`,
-            type: 'LOW_STOCK',
-            targetRole: 'ADMIN',
-            referenceId: p.productCode
-          }).catch(() => {});
-        }
-      }
-    }
-
-    let query = {
+    let baseQuery = {
       $or: [
         { targetRole: 'ALL' },
         { targetRole: req.user.role },
@@ -39,14 +14,31 @@ export const getNotifications = async (req, res, next) => {
       ]
     };
 
-    const notifications = await Notification.find(query).sort({ createdAt: -1 }).limit(50);
-    const unreadCount = notifications.filter(
-      (n) => !n.isRead && !n.readBy.some((uid) => String(uid) === String(req.user._id))
-    ).length;
+    let query = { ...baseQuery };
+    if (req.query.unread === 'true') {
+      query.isRead = false;
+      query.readBy = { $ne: req.user._id };
+    }
+
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const total = await Notification.countDocuments(query);
+    const notifications = await Notification.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
+
+    const unreadCount = await Notification.countDocuments({
+      ...baseQuery,
+      isRead: false,
+      readBy: { $ne: req.user._id }
+    });
 
     res.json({
       success: true,
       unreadCount,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit) || 1,
       notifications
     });
   } catch (error) {
