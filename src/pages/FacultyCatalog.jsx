@@ -1,19 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
-import Modal from '../components/common/Modal';
 import Button from '../components/common/Button';
 import Loading from '../components/common/Loading';
 import EmptyState from '../components/common/EmptyState';
 import Pagination from '../components/common/Pagination';
 import StatusBadge from '../components/common/StatusBadge';
-import { productApi, masterDataApi, indentApi } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../context/NotificationContext';
+import { productApi, masterDataApi } from '../services/api';
 
 export const FacultyCatalog = () => {
-  const { user } = useAuth();
-  const { fetchNotifications } = useNotifications();
   const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
@@ -26,16 +21,6 @@ export const FacultyCatalog = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(9);
   const [totalItems, setTotalItems] = useState(0);
-
-  // Booking / Requisition Modal State
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
-  const [quantity, setQuantity] = useState(1);
-  const [purpose, setPurpose] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [bookingError, setBookingError] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
 
   // Fetch categories from MongoDB
   useEffect(() => {
@@ -87,96 +72,11 @@ export const FacultyCatalog = () => {
     return () => clearTimeout(timer);
   }, [fetchProducts]);
 
-  const handleOpenBookModal = (product) => {
-    setSelectedProduct(product);
-    setQuantity(1);
-    setPurpose('');
-    setRemarks('');
-    setBookingError('');
-    setIsBookModalOpen(true);
-  };
-
-  const handleBookSubmit = async (e) => {
-    e.preventDefault();
-    setBookingError('');
-
-    const qty = Number(quantity);
-    if (!qty || qty <= 0) {
-      setBookingError('Please enter a valid quantity greater than 0.');
-      return;
-    }
-    if (!purpose.trim()) {
-      setBookingError('Please state the purpose of your requirement.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const payload = {
-        department: user?.department || 'Electrical & Electronics Engineering',
-        requestingDepartment: user?.department || 'Electrical & Electronics Engineering',
-        purpose: purpose.trim(),
-        remarks: remarks.trim(),
-        items: [
-          {
-            productId: selectedProduct._id || selectedProduct.id,
-            productCode: selectedProduct.productCode,
-            productName: selectedProduct.productName || selectedProduct.name,
-            unit: selectedProduct.unit || 'Pieces',
-            requestedQuantity: qty,
-            quantityRequired: qty
-          }
-        ]
-      };
-
-      const res = await indentApi.createIndent(payload);
-      if (res.success) {
-        fetchNotifications();
-        setIsBookModalOpen(false);
-        setToastMessage(`Requisition ${res.indent?.indentNumber || ''} submitted successfully!`);
-        setTimeout(() => setToastMessage(''), 6000);
-        fetchProducts();
-      } else {
-        setBookingError(res.message || 'Failed to submit request.');
-      }
-    } catch (err) {
-      setBookingError(err.response?.data?.message || err.message || 'Failed to submit request.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <Layout
       title="Product Catalog"
-      breadcrumb="Browse store items and request materials for departmental requirements"
+      breadcrumb="Browse available consumable products and submit material requests."
     >
-      {toastMessage && (
-        <div
-          style={{
-            background: 'var(--green-100)',
-            border: '1px solid var(--green-600)',
-            color: 'var(--green-700)',
-            padding: '12px 18px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontWeight: 600
-          }}
-        >
-          <span>✓ {toastMessage}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/faculty/requests')}
-            style={{ fontSize: '0.78rem', padding: '4px 10px' }}
-          >
-            View My Requests →
-          </Button>
-        </div>
-      )}
 
       {/* Filter and Search Bar */}
       <div className="card card-pad" style={{ marginBottom: '22px' }}>
@@ -328,9 +228,9 @@ export const FacultyCatalog = () => {
                       variant={isOutOfStock ? 'outline' : 'primary'}
                       size="sm"
                       disabled={isOutOfStock}
-                      onClick={() => handleOpenBookModal(p)}
+                      onClick={() => navigate(`/indents/create?product=${p._id}`)}
                     >
-                      {isOutOfStock ? 'Out of Stock' : 'Request / Book →'}
+                      {isOutOfStock ? 'Out of Stock' : 'Request'}
                     </Button>
                   </div>
                 </div>
@@ -350,88 +250,6 @@ export const FacultyCatalog = () => {
             }}
           />
         </>
-      )}
-
-      {/* Book / Request Product Modal */}
-      {selectedProduct && (
-        <Modal
-          isOpen={isBookModalOpen}
-          onClose={() => setIsBookModalOpen(false)}
-          title={`Request Item: ${selectedProduct.productName || selectedProduct.name}`}
-          maxWidth="540px"
-        >
-          <form onSubmit={handleBookSubmit}>
-            {bookingError && (
-              <div className="login-error-box" style={{ marginBottom: '14px' }}>
-                ⚠ {bookingError}
-              </div>
-            )}
-
-            <div
-              style={{
-                background: 'var(--blue-50)',
-                border: '1px solid var(--blue-100)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px 14px',
-                fontSize: '0.84rem',
-                color: 'var(--blue-700)',
-                marginBottom: '18px'
-              }}
-            >
-              <div><strong>Product Code:</strong> {selectedProduct.productCode}</div>
-              <div><strong>Category:</strong> {selectedProduct.category} · <strong>Unit:</strong> {selectedProduct.unit}</div>
-              <div><strong>Available in Central Store:</strong> {selectedProduct.currentQuantity} {selectedProduct.unit}</div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="req-qty">Quantity Required *</label>
-              <input
-                type="number"
-                id="req-qty"
-                min="1"
-                max={selectedProduct.currentQuantity > 0 ? selectedProduct.currentQuantity : undefined}
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                required
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-500)' }}>
-                Maximum recommended based on current stock: {selectedProduct.currentQuantity} {selectedProduct.unit}
-              </span>
-            </div>
-
-            <div className="field">
-              <label htmlFor="req-purpose">Purpose / Utilization Reason *</label>
-              <textarea
-                id="req-purpose"
-                rows="3"
-                placeholder="e.g. For Power Electronics Lab experiment setup / replacement of damaged classroom switch"
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="req-remarks">Additional Remarks (Optional)</label>
-              <input
-                type="text"
-                id="req-remarks"
-                placeholder="e.g. Urgently required for university inspection next Tuesday"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <Button type="button" variant="outline" onClick={() => setIsBookModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" disabled={submitting}>
-                {submitting ? 'Submitting to Store...' : 'Submit Request'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
       )}
     </Layout>
   );

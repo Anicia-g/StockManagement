@@ -6,7 +6,7 @@ import { useNotifications } from '../../context/NotificationContext';
 
 export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed }) => {
   const [approvedItems, setApprovedItems] = useState([]);
-  const [adminRemarks, setAdminRemarks] = useState('Stock issued and delivered to department.');
+  const [adminRemarks, setAdminRemarks] = useState('');
   const [liveStockMap, setLiveStockMap] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -143,7 +143,7 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
                 <th>Stock Register</th>
                 <th>Store Stock</th>
                 <th>Requested Qty</th>
-                <th>Approved & Issue Qty</th>
+                <th>Approved Qty</th>
                 <th>Quick Fill</th>
               </tr>
             </thead>
@@ -218,13 +218,13 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
         </div>
 
         <div className="field" style={{ marginBottom: '16px' }}>
-          <label htmlFor="admin-review-remarks">Admin Remarks / Issue Notes</label>
+          <label htmlFor="admin-review-remarks">Admin Remarks</label>
           <textarea
             id="admin-review-remarks"
             rows={2}
             value={adminRemarks}
             onChange={(e) => setAdminRemarks(e.target.value)}
-            placeholder="Notes for the requesting department..."
+            placeholder="Optional notes or instructions for the department..."
           />
         </div>
 
@@ -254,7 +254,7 @@ export const IndentApprovalModal = ({ isOpen, onClose, indent, onIndentProcessed
               onClick={() => handleProcess('APPROVE')}
               disabled={loading}
             >
-              {loading ? 'Processing & Issuing...' : 'Approve & Issue Stock Transfer'}
+              {loading ? 'Approving Indent...' : 'Approve Indent'}
             </Button>
           </div>
         </div>

@@ -254,3 +254,33 @@ export const reviewIndent = async (req, res, next) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Complete indent (Mark physically fulfilled offline without touching stock)
+// @route   POST /api/indents/:id/complete
+export const completeIndent = async (req, res, next) => {
+  try {
+    const indent = await Indent.findById(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
+    }
+
+    if (!['APPROVED', 'PARTIALLY_APPROVED', 'ISSUED', 'PARTIALLY_ISSUED'].includes(indent.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot complete indent with status "${indent.status}". Indent must be APPROVED.`
+      });
+    }
+
+    indent.status = 'COMPLETED';
+    await indent.save();
+
+    res.json({
+      success: true,
+      message: `Indent ${indent.indentNumber} marked as completed (physically fulfilled).`,
+      indent,
+      data: indent
+    });
+  } catch (error) {
+    next(error);
+  }
+};

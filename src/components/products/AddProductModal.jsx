@@ -85,28 +85,51 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
       return;
     }
 
+    if (!formData.category) {
+      setError('Category is required.');
+      return;
+    }
+
+    if (!formData.unit) {
+      setError('Unit is required.');
+      return;
+    }
+
+    const qty = Number(formData.currentQuantity);
+    if (isNaN(qty) || qty < 0) {
+      setError('Current Quantity must be a valid non-negative number.');
+      return;
+    }
+
+    const minQty = Number(formData.minimumStockLevel);
+    if (isNaN(minQty) || minQty < 0) {
+      setError('Minimum Stock Level must be a valid non-negative number.');
+      return;
+    }
+
     setLoading(true);
     try {
       const validRefs = registerRefs
         .filter((r) => r.sheet && r.page)
-        .map((r) => ({ sheet: r.sheet, page: Number(r.page) || 1 }));
+        .map((r) => ({ sheet: r.sheet, page: Math.max(1, Number(r.page) || 1) }));
 
       const payload = {
         ...formData,
         productName: formData.name.trim(),
         name: formData.name.trim(),
-        currentQuantity: Number(formData.currentQuantity) || 0,
-        minimumQuantity: Number(formData.minimumStockLevel) || 5,
-        minimumStockLevel: Number(formData.minimumStockLevel) || 5,
-        pageNumber: Number(formData.pageNumber) || 1,
-        registerRefs: validRefs.length > 0 ? validRefs : [{ sheet: formData.stockRegister, page: formData.pageNumber }]
+        category: formData.category.trim(),
+        unit: formData.unit.trim(),
+        description: formData.description ? formData.description.trim() : '',
+        currentQuantity: qty,
+        minimumQuantity: minQty,
+        minimumStockLevel: minQty,
+        stockRegister: validRefs[0]?.sheet || formData.stockRegister || 'SR1',
+        pageNumber: validRefs[0]?.page || Number(formData.pageNumber) || 1,
+        registerRefs: validRefs.length > 0 ? validRefs : [{ sheet: formData.stockRegister || 'SR1', page: Number(formData.pageNumber) || 1 }]
       };
 
-      if (formData.productCode && formData.productCode.trim()) {
-        payload.productCode = formData.productCode.trim().toUpperCase();
-      } else {
-        delete payload.productCode;
-      }
+      // Product code is strictly assigned by MongoDB backend
+      delete payload.productCode;
 
       const res = await productApi.createProduct(payload);
       if (res.success) {
@@ -115,7 +138,7 @@ export const AddProductModal = ({ isOpen, onClose, onProductCreated }) => {
         setFormData({
           productCode: '',
           name: '',
-          category: categories[0] || 'Lighting',
+          category: categories[0] || '',
           description: '',
           unit: units[0] || 'Pieces',
           currentQuantity: 10,

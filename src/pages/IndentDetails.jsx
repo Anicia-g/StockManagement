@@ -18,6 +18,7 @@ export const IndentDetails = () => {
   const [error, setError] = useState('');
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [successToast, setSuccessToast] = useState('');
+  const [completing, setCompleting] = useState(false);
 
   const fetchIndent = useCallback(async () => {
     try {
@@ -42,6 +43,26 @@ export const IndentDetails = () => {
     setIndent(updatedIndent);
     setSuccessToast(`Indent ${updatedIndent.indentNumber} successfully processed!`);
     setTimeout(() => setSuccessToast(''), 5000);
+  };
+
+  const handleCompleteIndent = async () => {
+    if (!window.confirm(`Mark Indent ${indent.indentNumber} as completed (physically fulfilled offline)?\n\nNote: This records physical fulfillment. To record the stock deduction in inventory, visit the Transfer module.`)) {
+      return;
+    }
+    try {
+      setCompleting(true);
+      setError('');
+      const res = await indentApi.completeIndent(indent._id || indent.id);
+      if (res.success) {
+        setIndent(res.indent);
+        setSuccessToast(`Indent ${indent.indentNumber} marked as completed (physically fulfilled).`);
+        setTimeout(() => setSuccessToast(''), 5000);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to complete indent.');
+    } finally {
+      setCompleting(false);
+    }
   };
 
   if (loading) {
@@ -92,11 +113,31 @@ export const IndentDetails = () => {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {canReview && (
               <Button variant="primary" onClick={() => setIsReviewModalOpen(true)}>
                 <span className="icon">✓</span> Review & Decide
               </Button>
+            )}
+            {isAdmin && (indent.status === 'APPROVED' || indent.status === 'PARTIALLY_APPROVED') && (
+              <Button
+                variant="primary"
+                onClick={handleCompleteIndent}
+                disabled={completing}
+                title="Mark this approved indent as physically fulfilled offline (does not alter stock)"
+              >
+                {completing ? 'Completing...' : '✓ Mark as Completed'}
+              </Button>
+            )}
+            {isAdmin && (indent.status === 'APPROVED' || indent.status === 'PARTIALLY_APPROVED' || indent.status === 'COMPLETED') && (
+              <Link
+                to="/transfers"
+                className="btn-outline"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                title="Go to Transfer module to record offline stock transfer"
+              >
+                ↗ Record Transfer
+              </Link>
             )}
             <button
               type="button"
@@ -131,7 +172,7 @@ export const IndentDetails = () => {
           </div>
         )}
 
-        {/* Indent Status Timeline Tracker */}
+        {/* Indent Status Lifecycle Tracking */}
         <div className="card" style={{ marginBottom: '24px', padding: '20px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
             <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--navy-900)' }}>
@@ -142,144 +183,200 @@ export const IndentDetails = () => {
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflowX: 'auto', padding: '10px 0' }}>
-            {/* Step 1: Submitted */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--green-600)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.88rem', boxShadow: '0 2px 6px rgba(16,185,129,0.3)' }}>
-                ✓
+          {indent.status === 'REJECTED' ? (
+            /* Rejected Lifecycle (3 Steps: Submitted -> Under Review -> Rejected) */
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflowX: 'auto', padding: '10px 0' }}>
+              {/* Step 1: Submitted */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '120px', zIndex: 2 }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--green-600)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.88rem', boxShadow: '0 2px 6px rgba(16,185,129,0.3)' }}>
+                  ✓
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Submitted</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{indent.requestDate || indent.date}</span>
               </div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Submitted</span>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{indent.requestDate}</span>
+
+              {/* Connector Line 1 */}
+              <div style={{ flex: 1, height: '3px', background: 'var(--green-500)', margin: '0 8px', alignSelf: 'center', marginBottom: '22px' }} />
+
+              {/* Step 2: Under Review */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '120px', zIndex: 2 }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--green-600)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.88rem', boxShadow: '0 2px 6px rgba(16,185,129,0.3)' }}>
+                  ✓
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Under Review</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Reviewed</span>
+              </div>
+
+              {/* Connector Line 2 */}
+              <div style={{ flex: 1, height: '3px', background: 'var(--red-500)', margin: '0 8px', alignSelf: 'center', marginBottom: '22px' }} />
+
+              {/* Step 3: Rejected */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '120px', zIndex: 2 }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: 'var(--red-600)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '0.88rem',
+                  boxShadow: '0 2px 8px rgba(239,68,68,0.4)',
+                  outline: '3px solid #fecaca'
+                }}>
+                  ✕
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, marginTop: '8px', color: 'var(--red-700)' }}>Rejected</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  {indent.reviewedBy ? `By ${indent.reviewedBy}` : (indent.approvedBy ? `By ${indent.approvedBy}` : 'By Admin')}
+                </span>
+              </div>
             </div>
+          ) : (
+            /* Standard / Approved Lifecycle (4 Steps: Submitted -> Under Review -> Approved -> Completed) */
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflowX: 'auto', padding: '10px 0' }}>
+              {/* Step 1: Submitted */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--green-600)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.88rem', boxShadow: '0 2px 6px rgba(16,185,129,0.3)' }}>
+                  ✓
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Submitted</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{indent.requestDate || indent.date}</span>
+              </div>
 
-            {/* Connector Line 1 */}
-            <div style={{ flex: 1, height: '3px', background: 'var(--green-500)', margin: '0 8px', alignSelf: 'center', marginBottom: '22px' }} />
-
-            {/* Step 2: Under Review */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+              {/* Connector Line 1 */}
               <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: indent.status === 'PENDING' || indent.status === 'SUBMITTED' ? 'var(--amber-500)' : 'var(--green-600)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '0.88rem',
-                boxShadow: indent.status === 'PENDING' || indent.status === 'SUBMITTED' ? '0 2px 6px rgba(245,158,11,0.3)' : '0 2px 6px rgba(16,185,129,0.3)'
-              }}>
-                {indent.status === 'PENDING' || indent.status === 'SUBMITTED' ? '⏳' : '✓'}
-              </div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Under Review</span>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                {indent.status === 'PENDING' || indent.status === 'SUBMITTED' ? 'Pending Admin Action' : 'Reviewed'}
-              </span>
-            </div>
+                flex: 1,
+                height: '3px',
+                background: 'var(--green-500)',
+                margin: '0 8px',
+                alignSelf: 'center',
+                marginBottom: '22px'
+              }} />
 
-            {/* Connector Line 2 */}
-            <div style={{
-              flex: 1,
-              height: '3px',
-              background: indent.status === 'PENDING' || indent.status === 'SUBMITTED' ? 'var(--border)' : (indent.status === 'REJECTED' ? 'var(--red-500)' : 'var(--green-500)'),
-              margin: '0 8px',
-              alignSelf: 'center',
-              marginBottom: '22px'
-            }} />
+              {/* Step 2: Under Review */}
+              {(() => {
+                const isUnderReviewActive = indent.status === 'PENDING' || indent.status === 'SUBMITTED' || indent.status === 'DRAFT';
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: isUnderReviewActive ? 'var(--amber-500)' : 'var(--green-600)',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold',
+                      fontSize: '0.88rem',
+                      boxShadow: isUnderReviewActive ? '0 2px 8px rgba(245,158,11,0.4)' : '0 2px 6px rgba(16,185,129,0.3)',
+                      outline: isUnderReviewActive ? '3px solid #fef3c7' : 'none'
+                    }}>
+                      {isUnderReviewActive ? '⏳' : '✓'}
+                    </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: isUnderReviewActive ? 'var(--amber-800)' : 'var(--navy-900)' }}>
+                      Under Review
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      {isUnderReviewActive ? 'Pending Admin Action' : 'Reviewed'}
+                    </span>
+                  </div>
+                );
+              })()}
 
-            {/* Step 3: Approval Decision */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+              {/* Connector Line 2 */}
               <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: indent.status === 'REJECTED'
-                  ? 'var(--red-600)'
-                  : (indent.status === 'APPROVED' || indent.status === 'PARTIALLY_APPROVED' || indent.status === 'COMPLETED' || indent.status === 'ISSUED')
-                  ? 'var(--green-600)'
-                  : 'var(--gray-300)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '0.88rem'
-              }}>
-                {indent.status === 'REJECTED' ? '✕' : (indent.status === 'APPROVED' || indent.status === 'COMPLETED' || indent.status === 'ISSUED' ? '✓' : '3')}
-              </div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>
-                {indent.status === 'REJECTED' ? 'Rejected' : indent.status === 'PARTIALLY_APPROVED' ? 'Partially Approved' : 'Approved'}
-              </span>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                {indent.reviewedBy ? `By ${indent.reviewedBy}` : 'Store Admin'}
-              </span>
-            </div>
+                flex: 1,
+                height: '3px',
+                background: (indent.status === 'PENDING' || indent.status === 'SUBMITTED' || indent.status === 'DRAFT')
+                  ? 'var(--border)'
+                  : 'var(--green-500)',
+                margin: '0 8px',
+                alignSelf: 'center',
+                marginBottom: '22px'
+              }} />
 
-            {/* Connector Line 3 */}
-            <div style={{
-              flex: 1,
-              height: '3px',
-              background: (indent.status === 'COMPLETED' || indent.status === 'ISSUED') ? 'var(--green-500)' : 'var(--border)',
-              margin: '0 8px',
-              alignSelf: 'center',
-              marginBottom: '22px'
-            }} />
+              {/* Step 3: Approved */}
+              {(() => {
+                const isApprovedActive = indent.status === 'APPROVED' || indent.status === 'PARTIALLY_APPROVED';
+                const isPastApproved = indent.status === 'COMPLETED' || indent.status === 'ISSUED';
+                const isApprovedOrPast = isApprovedActive || isPastApproved;
 
-            {/* Step 4: Transfer / Issue */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: isApprovedOrPast ? 'var(--green-600)' : 'var(--gray-300)',
+                      color: isApprovedOrPast ? '#fff' : 'var(--text-400)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold',
+                      fontSize: '0.88rem',
+                      boxShadow: isApprovedActive ? '0 2px 8px rgba(16,185,129,0.4)' : 'none',
+                      outline: isApprovedActive ? '3px solid #d1fae5' : 'none'
+                    }}>
+                      {isApprovedOrPast ? '✓' : '3'}
+                    </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: isApprovedActive ? 700 : 600, marginTop: '8px', color: isApprovedActive ? 'var(--green-800)' : 'var(--navy-900)' }}>
+                      {indent.status === 'PARTIALLY_APPROVED' ? 'Partially Approved' : 'Approved'}
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      {isApprovedOrPast
+                        ? (indent.reviewedBy ? `By ${indent.reviewedBy}` : (indent.approvedBy ? `By ${indent.approvedBy}` : 'By Admin'))
+                        : 'Pending Approval'}
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Connector Line 3 */}
               <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: (indent.status === 'COMPLETED' || indent.status === 'ISSUED') ? 'var(--blue-600)' : 'var(--gray-300)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '0.88rem'
-              }}>
-                {(indent.status === 'COMPLETED' || indent.status === 'ISSUED') ? '✓' : '4'}
-              </div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Stock Transfer</span>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                {(indent.status === 'COMPLETED' || indent.status === 'ISSUED') ? 'Stock Dispatched' : 'Pending Issue'}
-              </span>
-            </div>
+                flex: 1,
+                height: '3px',
+                background: (indent.status === 'COMPLETED' || indent.status === 'ISSUED') ? 'var(--green-500)' : 'var(--border)',
+                margin: '0 8px',
+                alignSelf: 'center',
+                marginBottom: '22px'
+              }} />
 
-            {/* Connector Line 4 */}
-            <div style={{
-              flex: 1,
-              height: '3px',
-              background: indent.status === 'COMPLETED' ? 'var(--green-500)' : 'var(--border)',
-              margin: '0 8px',
-              alignSelf: 'center',
-              marginBottom: '22px'
-            }} />
-
-            {/* Step 5: Completed */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: indent.status === 'COMPLETED' ? 'var(--green-600)' : 'var(--gray-300)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '0.88rem'
-              }}>
-                {indent.status === 'COMPLETED' ? '✓' : '5'}
-              </div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '8px', color: 'var(--navy-900)' }}>Completed</span>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                {indent.status === 'COMPLETED' ? 'Fulfilled' : 'Final Step'}
-              </span>
+              {/* Step 4: Completed */}
+              {(() => {
+                const isCompleted = indent.status === 'COMPLETED' || indent.status === 'ISSUED';
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '110px', zIndex: 2 }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: isCompleted ? 'var(--green-600)' : 'var(--gray-300)',
+                      color: isCompleted ? '#fff' : 'var(--text-400)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold',
+                      fontSize: '0.88rem',
+                      boxShadow: isCompleted ? '0 2px 8px rgba(16,185,129,0.4)' : 'none',
+                      outline: isCompleted ? '3px solid #d1fae5' : 'none'
+                    }}>
+                      {isCompleted ? '✓' : '4'}
+                    </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: isCompleted ? 700 : 600, marginTop: '8px', color: isCompleted ? 'var(--green-800)' : 'var(--navy-900)' }}>
+                      Completed
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      {isCompleted ? 'Physically Fulfilled' : 'Pending Fulfillment'}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
-          </div>
+          )}
         </div>
 
         {/* Overview cards */}

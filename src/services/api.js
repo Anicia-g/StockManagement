@@ -248,6 +248,10 @@ export const indentApi = {
   reviewIndent: async (id, reviewData) => {
     const res = await api.post(`/indents/${id}/review`, reviewData);
     return res.data;
+  },
+  completeIndent: async (id) => {
+    const res = await api.post(`/indents/${id}/complete`);
+    return res.data;
   }
 };
 

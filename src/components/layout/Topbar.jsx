@@ -69,9 +69,9 @@ export const Topbar = ({ title = 'Dashboard', breadcrumb = 'Overview', onToggleM
               {user?.avatarText || (user?.role === 'ADMIN' ? 'AD' : 'FA')}
             </div>
             <div className="who">
-              <strong>{user?.name || (user?.role === 'ADMIN' ? 'System Admin' : 'Faculty User')}</strong>
+              <strong>{user?.name || (user?.role === 'ADMIN' ? 'Admin' : 'Faculty User')}</strong>
               <span>
-                {roleLabel} · {user?.department || 'Consumable Stock Store'}
+                {roleLabel} · {user?.department || (user?.role === 'ADMIN' ? 'Central Store' : 'Department')}
               </span>
             </div>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '4px' }}>

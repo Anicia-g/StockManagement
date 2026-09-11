@@ -30,7 +30,7 @@ export const IndentTable = ({ indents = [], onReview = null, onApprove = null, o
             <th>Total Qty</th>
             <th>Purpose</th>
             <th>Status</th>
-            {!isAdmin && <th>Store Remarks</th>}
+            {!isAdmin && <th>Admin Remarks</th>}
             <th>Actions</th>
           </tr>
         </thead>

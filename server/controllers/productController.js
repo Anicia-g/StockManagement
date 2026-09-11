@@ -4,6 +4,8 @@ import StockDocument from '../models/StockDocument.js';
 import StockTransaction from '../models/StockTransaction.js';
 import ProductRemark from '../models/ProductRemark.js';
 import Indent from '../models/Indent.js';
+import Purchase from '../models/Purchase.js';
+import Transfer from '../models/Transfer.js';
 import { generateProductCode } from '../utils/codeGenerator.js';
 import { syncProductLowStockNotification } from '../services/stockService.js';
 
@@ -361,6 +363,7 @@ export const updateProduct = async (req, res, next) => {
       category,
       unit,
       description,
+      currentQuantity,
       minimumQuantity,
       minimumStockLevel,
       active,
@@ -381,6 +384,31 @@ export const updateProduct = async (req, res, next) => {
     if (category) product.category = category.trim();
     if (unit) product.unit = unit.trim();
     if (description !== undefined) product.description = description;
+
+    // Handle Current Quantity stock adjustment
+    if (currentQuantity !== undefined) {
+      const newQty = Math.max(0, Number(currentQuantity));
+      if (!isNaN(newQty) && newQty !== product.currentQuantity) {
+        const diff = newQty - product.currentQuantity;
+        await StockTransaction.create({
+          transactionId: `TXN-ADJ-${product.productCode}-${Date.now()}`,
+          transactionType: diff > 0 ? 'PURCHASE' : 'TRANSFER',
+          productId: product._id,
+          productCode: product.productCode,
+          productName: product.productName,
+          stockRegister: product.stockRegister || 'SR1',
+          quantity: Math.abs(diff),
+          previousQuantity: product.currentQuantity,
+          newQuantity: newQty,
+          department: 'Central Store Adjustment',
+          date: new Date().toISOString().split('T')[0],
+          remarks: `Inventory stock quantity adjusted by Admin (${diff > 0 ? '+' : ''}${diff})`,
+          recordedBy: req.user?.name || 'Admin',
+          referenceId: `ADJ-${product.productCode}`
+        });
+        product.currentQuantity = newQty;
+      }
+    }
 
     if (minimumQuantity !== undefined) {
       product.minimumQuantity = Math.max(0, Number(minimumQuantity));
@@ -407,7 +435,7 @@ export const updateProduct = async (req, res, next) => {
       await ProductDocumentReference.deleteMany({ productId: product._id });
       for (const ref of registerRefs) {
         const sheetName = (ref.sheet || ref.stockDocumentName || 'SR1').toUpperCase();
-        const page = Number(ref.page || ref.pageNumber) || 1;
+        const page = Math.max(1, Number(ref.page || ref.pageNumber) || 1);
         const stockDoc = await StockDocument.findOne({ name: sheetName });
         await ProductDocumentReference.create({
           productId: product._id,
@@ -436,7 +464,7 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
-// @desc    Delete or deactivate product
+// @desc    Delete or deactivate product safely
 // @route   DELETE /api/products/:id
 export const deleteProduct = async (req, res, next) => {
   try {
@@ -448,35 +476,54 @@ export const deleteProduct = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found.' });
     }
 
+    // Check all historical dependencies
     const hasTransactions = await StockTransaction.exists({
       $or: [{ productId: product._id }, { productCode: product.productCode }]
     });
     const hasIndents = await Indent.exists({ 'items.productId': product._id });
+    const hasPurchases = await Purchase.exists({
+      $or: [
+        { productId: product._id },
+        { productCode: product.productCode },
+        { 'items.productId': product._id },
+        { 'items.productCode': product.productCode }
+      ]
+    });
+    const hasTransfers = await Transfer.exists({
+      $or: [
+        { productId: product._id },
+        { productCode: product.productCode },
+        { 'items.productId': product._id },
+        { 'items.productCode': product.productCode }
+      ]
+    });
 
-    if (!hasTransactions && !hasIndents) {
-      // Safe to fully remove document and references
-      await ProductDocumentReference.deleteMany({ productId: product._id });
-      await ProductRemark.deleteMany({ productId: product._id });
-      await Product.findByIdAndDelete(product._id);
+    if (hasTransactions || hasIndents || hasPurchases || hasTransfers) {
+      // Historical records exist: prevent hard deletion and deactivate instead
+      product.active = false;
+      product.status = 'INACTIVE';
+      product.updatedBy = req.user?.name || 'Admin';
+      await product.save();
 
       return res.json({
         success: true,
-        message: `Product "${product.productName || product.name}" (${product.productCode}) removed completely from database.`,
-        deleted: true,
+        message: 'This product cannot be deleted because it is referenced by existing stock or transaction records. It has been deactivated instead to preserve historical records.',
+        deleted: false,
+        deactivated: true,
         product
       });
     }
 
-    // Historical transactions or indents exist: deactivate to maintain historical integrity
-    product.active = false;
-    product.status = 'INACTIVE';
-    product.updatedBy = req.user?.name || 'Admin';
-    await product.save();
+    // Safe to fully remove document and references
+    await ProductDocumentReference.deleteMany({ productId: product._id });
+    await ProductRemark.deleteMany({ productId: product._id });
+    await Product.findByIdAndDelete(product._id);
 
     res.json({
       success: true,
-      message: `Product "${product.productName || product.name}" (${product.productCode}) deactivated successfully to protect historical records.`,
-      deleted: false,
+      message: `Product "${product.productName || product.name}" (${product.productCode}) deleted successfully.`,
+      deleted: true,
+      deactivated: false,
       product
     });
   } catch (error) {

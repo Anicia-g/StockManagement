@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import StatusBadge from '../components/common/StatusBadge';
 import StockReferenceCard from '../components/products/StockReferenceCard';
@@ -8,15 +8,14 @@ import Modal from '../components/common/Modal';
 import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
 import Loading from '../components/common/Loading';
-import { productApi, historyApi, indentApi } from '../services/api';
+import { productApi, historyApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../context/NotificationContext';
 
-export const ProductDetails = () => {
+export const ProductDetails = ({ initialEdit = false }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAdmin } = useAuth();
-  const { fetchNotifications } = useNotifications();
 
   const [product, setProduct] = useState(null);
   const [history, setHistory] = useState([]);
@@ -24,23 +23,19 @@ export const ProductDetails = () => {
   const [error, setError] = useState('');
 
   // Admin controls state
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const shouldOpenEdit = initialEdit || location.pathname.endsWith('/edit');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(shouldOpenEdit);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [isAddRemarkOpen, setIsAddRemarkOpen] = useState(false);
   const [remarkText, setRemarkText] = useState('');
   const [remarkAuthor, setRemarkAuthor] = useState(user?.name ? `${user.name} (Admin)` : 'Admin');
-
-  // Faculty booking modal state
-  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
-  const [bookQuantity, setBookQuantity] = useState(1);
-  const [bookPurpose, setBookPurpose] = useState('');
-  const [bookRemarks, setBookRemarks] = useState('');
-  const [submittingRequest, setSubmittingRequest] = useState(false);
-  const [bookError, setBookError] = useState('');
-  const [successToast, setSuccessToast] = useState('');
+  const [feedback, setFeedback] = useState(null);
 
   const loadProductData = useCallback(async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await productApi.getProductDetails(id);
       if (res.success && res.product) {
         const prod = res.product;
@@ -50,7 +45,19 @@ export const ProductDetails = () => {
             page: r.page || r.pageNumber,
             note: r.referenceNote
           }));
+        } else if (prod.registerRefs && prod.registerRefs.length > 0) {
+          prod.registerRefs = prod.registerRefs.map(r => ({
+            sheet: r.sheet || r.stockDocumentName,
+            page: r.page || r.pageNumber,
+            note: r.note || r.referenceNote
+          }));
+        } else if (prod.stockRegister) {
+          prod.registerRefs = [{
+            sheet: prod.stockRegister,
+            page: prod.pageNumber || 1
+          }];
         }
+
         if (res.remarks && res.remarks.length > 0) {
           prod.remarks = res.remarks.map(rem => ({
             id: rem._id || rem.id,
@@ -63,14 +70,23 @@ export const ProductDetails = () => {
         setHistory(res.history || []);
       } else {
         const singleRes = await productApi.getProductById(id);
-        if (singleRes.success) {
-          setProduct(singleRes.product);
+        if (singleRes.success && singleRes.product) {
+          const prod = singleRes.product;
+          if (!prod.registerRefs || prod.registerRefs.length === 0) {
+            prod.registerRefs = [{
+              sheet: prod.stockRegister || 'SR1',
+              page: prod.pageNumber || 1
+            }];
+          }
+          setProduct(prod);
           if (isAdmin) {
-            const histRes = await historyApi.getStockHistory({ search: singleRes.product.productCode });
+            const histRes = await historyApi.getStockHistory({ search: prod.productCode });
             if (histRes.success) {
               setHistory(histRes.transactions || []);
             }
           }
+        } else {
+          setError('Product not found.');
         }
       }
     } catch (err) {
@@ -96,14 +112,14 @@ export const ProductDetails = () => {
   if (error || !product) {
     return (
       <Layout title="Product Details" breadcrumb="Products / Not Found">
-        <div className="card card-pad" style={{ textAlign: 'center', padding: '40px' }}>
+        <div className="card card-pad" style={{ textAlign: 'center', padding: '40px', maxWidth: '600px', margin: '40px auto' }}>
           <EmptyState
             icon="⚠"
             title="Product Not Found"
             description={`Could not find product matching ID/Code "${id}".`}
             action={
-              <Link to={isAdmin ? "/admin/products" : "/faculty/catalog"} className="btn-primary">
-                ← Back to {isAdmin ? 'Products List' : 'Product Catalog'}
+              <Link to={isAdmin ? "/products" : "/faculty/catalog"} className="btn-primary">
+                ← Back to {isAdmin ? 'Products' : 'Product Catalog'}
               </Link>
             }
           />
@@ -147,221 +163,251 @@ export const ProductDetails = () => {
     }
   };
 
-  const handleDelete = async () => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete or deactivate "${product.productName || product.name}" (${product.productCode})?`
-    );
-    if (!confirmed) return;
-
+  const handleConfirmDelete = async () => {
+    setDeleteLoading(true);
     try {
       const res = await productApi.deleteProduct(product._id || product.id);
+      setIsDeleteModalOpen(false);
       if (res.success) {
-        alert(res.message);
-        navigate('/admin/products');
+        if (res.deactivated) {
+          setFeedback({
+            type: 'info',
+            message: res.message || 'This product cannot be deleted because it is referenced by existing stock or transaction records. It has been deactivated instead.'
+          });
+          loadProductData();
+        } else {
+          alert(res.message || 'Product deleted successfully.');
+          navigate('/products');
+        }
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to delete product.');
-    }
-  };
-
-  const handleBookSubmit = async (e) => {
-    e.preventDefault();
-    setBookError('');
-
-    const qty = Number(bookQuantity);
-    if (!qty || qty <= 0) {
-      setBookError('Please enter a valid quantity.');
-      return;
-    }
-    if (!bookPurpose.trim()) {
-      setBookError('Please state the purpose of requirement.');
-      return;
-    }
-
-    setSubmittingRequest(true);
-    try {
-      const payload = {
-        department: user?.department || 'Electrical & Electronics Engineering',
-        requestingDepartment: user?.department || 'Electrical & Electronics Engineering',
-        purpose: bookPurpose.trim(),
-        remarks: bookRemarks.trim(),
-        items: [
-          {
-            productId: product._id,
-            productCode: product.productCode,
-            productName: product.productName || product.name,
-            unit: product.unit || 'Pieces',
-            requestedQuantity: qty,
-            quantityRequired: qty
-          }
-        ]
-      };
-
-      const res = await indentApi.createIndent(payload);
-      if (res.success) {
-        fetchNotifications();
-        setIsBookModalOpen(false);
-        setSuccessToast(`Indent ${res.indent?.indentNumber} created successfully!`);
-        setTimeout(() => setSuccessToast(''), 5000);
-      }
-    } catch (err) {
-      setBookError(err.response?.data?.message || err.message || 'Failed to submit indent.');
     } finally {
-      setSubmittingRequest(false);
+      setDeleteLoading(false);
     }
   };
+
+  const formattedCreatedDate = product.createdAt
+    ? new Date(product.createdAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    : null;
+
+  const formattedUpdatedDate = product.updatedAt
+    ? new Date(product.updatedAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    : null;
 
   return (
     <Layout
       title="Product Details"
       breadcrumb={`${isAdmin ? 'Inventory' : 'Catalog'} / ${product.productName || product.name} (${product.productCode})`}
     >
-      {successToast && (
-        <div
-          style={{
-            background: 'var(--green-100)',
-            border: '1px solid var(--green-600)',
-            color: 'var(--green-700)',
-            padding: '12px 18px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontWeight: 600
-          }}
-        >
-          <span>✓ {successToast}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/faculty/requests')}
-          >
-            View My Requests →
-          </Button>
-        </div>
-      )}
+      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+        {/* Navigation & Actions Top Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+          <Link to={isAdmin ? "/products" : "/faculty/catalog"} className="back-link" style={{ marginBottom: 0, fontWeight: 600 }}>
+            ← Back to {isAdmin ? 'Products' : 'Product Catalog'}
+          </Link>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <Link to={isAdmin ? "/admin/products" : "/faculty/catalog"} className="back-link" style={{ marginBottom: 0 }}>
-          ← Back to {isAdmin ? 'Products List' : 'Product Catalog'}
-        </Link>
+          {/* ADMIN ACTIONS */}
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+              >
+                ✏ Edit Product
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setIsDeleteModalOpen(true)}
+              >
+                🗑 Delete
+              </Button>
+            </div>
+          )}
 
-        {/* ADMIN ACTIONS */}
-        {isAdmin && (
-          <div style={{ display: 'flex', gap: '8px' }}>
+          {/* FACULTY ACTION */}
+          {!isAdmin && (
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsEditModalOpen(true)}
+              variant="primary"
+              onClick={() => navigate(`/indents/create?product=${product._id || product.id}`)}
+              disabled={curQty <= 0}
             >
-              ✏ Edit Product
+              {curQty <= 0 ? 'Out of Stock' : 'Request Item →'}
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleDelete}
-            >
-              🗑 Delete / Deactivate
-            </Button>
-          </div>
-        )}
-
-        {/* FACULTY ACTION */}
-        {!isAdmin && (
-          <Button
-            variant="primary"
-            onClick={() => setIsBookModalOpen(true)}
-            disabled={curQty <= 0}
-          >
-            {curQty <= 0 ? 'Out of Stock' : 'Request / Book this Item →'}
-          </Button>
-        )}
-      </div>
-
-      <div className="detail-head">
-        <div>
-          <h1 style={{ marginBottom: '2px' }}>{product.productName || product.name}</h1>
-          <span className="code">
-            {product.productCode} · Category: <strong>{product.category}</strong> · Unit: <strong>{product.unit || 'Pieces'}</strong>
-          </span>
-          {product.description && (
-            <p style={{ marginTop: '8px', fontSize: '0.88rem', color: 'var(--text-700)' }}>
-              {product.description}
-            </p>
           )}
         </div>
-        <StatusBadge status={statusText} />
-      </div>
 
-      {/* Stock Metrics Section */}
-      <div className="section">
-        <div className="card card-pad">
-          <div className="def-list">
+        {feedback && (
+          <div
+            className={feedback.type === 'info' ? 'alert-box' : 'success-box'}
+            style={{ marginBottom: '20px' }}
+          >
+            ℹ {feedback.message}
+          </div>
+        )}
+
+        {/* Product Details Header Card */}
+        <div className="card card-pad" style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <div className="dt">Current Available Stock</div>
-              <div className="dd" style={{ fontSize: '1.35rem', fontWeight: 700, color: isLowStock ? 'var(--red-600)' : 'var(--navy-900)' }}>
-                {curQty} {product.unit || 'Pieces'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                <span className="code" style={{ fontSize: '0.95rem', fontWeight: 700, padding: '3px 8px', background: 'var(--navy-100)', color: 'var(--blue-700)', borderRadius: '4px' }}>
+                  {product.productCode}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>·</span>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-600)' }}>
+                  Status: <strong style={{ color: product.active === false ? 'var(--red-600)' : 'var(--green-600)' }}>{product.active === false ? 'INACTIVE' : 'ACTIVE'}</strong>
+                </span>
               </div>
+              <h1 style={{ fontSize: '1.6rem', color: 'var(--navy-900)', margin: '4px 0 8px 0' }}>
+                {product.productName || product.name}
+              </h1>
+              {product.description && (
+                <p style={{ margin: '6px 0 0 0', fontSize: '0.92rem', color: 'var(--text-700)', maxWidth: '650px', lineHeight: 1.5 }}>
+                  {product.description}
+                </p>
+              )}
             </div>
-            {isAdmin && (
-              <div>
-                <div className="dt">Minimum Threshold Level</div>
-                <div className="dd">
-                  {minStock} {product.unit || 'Pieces'}
-                </div>
-              </div>
-            )}
-            <div>
-              <div className="dt">Location / Catalog Index</div>
-              <div className="dd">
-                Page {product.pageNumber || product.registerRefs?.[0]?.page || 1}
-              </div>
-            </div>
-            <div>
-              <div className="dt">Availability Status</div>
-              <div
-                className="dd"
-                style={{
-                  color: isLowStock
-                    ? 'var(--red-600)'
-                    : isNearing
-                    ? 'var(--amber-700)'
-                    : 'var(--green-600)',
-                  fontWeight: 600
-                }}
-              >
-                {isLowStock
-                  ? 'Low Stock in Central Store'
-                  : isNearing
-                  ? 'Near Minimum Threshold'
-                  : 'Available in Central Store'}
+
+            <div style={{ textAlign: 'right' }}>
+              <StatusBadge status={statusText} />
+              <div style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Stock Status: <strong>{isLowStock ? 'LOW STOCK' : 'AVAILABLE'}</strong>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ================================================================= */}
-      {/* ADMIN-ONLY INTERNAL STOCK MANAGEMENT & REGISTERS                 */}
-      {/* ================================================================= */}
-      {isAdmin && (
-        <>
-          {/* Physical Stock Register & Sheet References (SR1 / SR2 / SR3) */}
-          <div className="section">
-            <div className="section-head">
-              <h2>Stock Register & Sheet References</h2>
-              <span className="hint">Physical store ledger references (SR1 / SR2 / SR3 / CSSR1)</span>
+        {/* Section: Product Information */}
+        <div className="section" style={{ marginBottom: '24px' }}>
+          <div className="card">
+            <div className="card-head" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2>Product Information</h2>
+              <span className="hint">Specification & master classification</span>
             </div>
-            <StockReferenceCard references={product.registerRefs} />
+            <div className="card-pad">
+              <div className="def-list">
+                <div>
+                  <div className="dt">Product Code</div>
+                  <div className="dd" style={{ fontWeight: 600, color: 'var(--blue-700)' }}>
+                    {product.productCode}
+                  </div>
+                </div>
+                <div>
+                  <div className="dt">Product Name</div>
+                  <div className="dd" style={{ fontWeight: 600 }}>
+                    {product.productName || product.name}
+                  </div>
+                </div>
+                <div>
+                  <div className="dt">Category</div>
+                  <div className="dd">
+                    <span className="badge badge-blue">{product.category}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="dt">Unit of Measurement</div>
+                  <div className="dd">{product.unit || 'Pieces'}</div>
+                </div>
+                <div>
+                  <div className="dt">Current Quantity</div>
+                  <div className="dd" style={{ fontWeight: 700, fontSize: '1.1rem', color: isLowStock ? 'var(--red-600)' : 'var(--navy-900)' }}>
+                    {curQty} {product.unit || 'Pieces'}
+                  </div>
+                </div>
+                <div>
+                  <div className="dt">Minimum Threshold Quantity</div>
+                  <div className="dd">
+                    {minStock} {product.unit || 'Pieces'}
+                  </div>
+                </div>
+                {formattedCreatedDate && (
+                  <div>
+                    <div className="dt">Created Date</div>
+                    <div className="dd" style={{ color: 'var(--text-600)' }}>
+                      {formattedCreatedDate}
+                    </div>
+                  </div>
+                )}
+                {formattedUpdatedDate && (
+                  <div>
+                    <div className="dt">Last Updated</div>
+                    <div className="dd" style={{ color: 'var(--text-600)' }}>
+                      {formattedUpdatedDate}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+        </div>
 
-          {/* Stock Movement History */}
-          <div className="section">
+        {/* Section: Stock Information */}
+        <div className="section" style={{ marginBottom: '24px' }}>
+          <div className="card">
+            <div className="card-head" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2>Stock Information</h2>
+              <span className="hint">Central store inventory balance</span>
+            </div>
+            <div className="card-pad">
+              <div className="def-list">
+                <div>
+                  <div className="dt">Current Stock</div>
+                  <div className="dd" style={{ fontSize: '1.4rem', fontWeight: 700, color: isLowStock ? 'var(--red-600)' : 'var(--green-700)' }}>
+                    {curQty} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{product.unit || 'Pieces'}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="dt">Minimum Stock</div>
+                  <div className="dd" style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                    {minStock} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{product.unit || 'Pieces'}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="dt">Stock Status</div>
+                  <div className="dd" style={{ fontWeight: 700, color: isLowStock ? 'var(--red-600)' : isNearing ? 'var(--amber-700)' : 'var(--green-600)' }}>
+                    {isLowStock
+                      ? 'Low Stock (Requires Restock)'
+                      : isNearing
+                      ? 'Nearing Minimum Threshold'
+                      : 'Available in Central Store'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Stock Register References */}
+        <div className="section" style={{ marginBottom: '24px' }}>
+          <div className="card">
+            <div className="card-head" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2>Stock Register References</h2>
+              <span className="hint">Physical store ledger & document references</span>
+            </div>
+            <div className="card-pad">
+              <StockReferenceCard references={product.registerRefs} />
+            </div>
+          </div>
+        </div>
+
+        {/* ADMIN-ONLY Stock Movement History */}
+        {isAdmin && (
+          <div className="section" style={{ marginBottom: '24px' }}>
             <div className="card">
-              <div className="card-head">
-                <h2>Stock Movement History (Purchases & Issues)</h2>
-                <span className="hint">All recorded receipts and department issues in MongoDB</span>
+              <div className="card-head" style={{ borderBottom: '1px solid var(--border)' }}>
+                <h2>Stock Movement History (Purchases & Transfers)</h2>
+                <span className="hint">Audit log of all receipts and department issues in MongoDB</span>
               </div>
               <div className="table-wrap">
                 {history.length === 0 ? (
@@ -410,11 +456,13 @@ export const ProductDetails = () => {
               </div>
             </div>
           </div>
+        )}
 
-          {/* Remarks Section */}
-          <div className="section">
+        {/* ADMIN-ONLY Technical Remarks */}
+        {isAdmin && (
+          <div className="section" style={{ marginBottom: '24px' }}>
             <div className="card">
-              <div className="card-head">
+              <div className="card-head" style={{ borderBottom: '1px solid var(--border)' }}>
                 <h2>Technical Remarks & Quality Inspection Notes</h2>
                 <Button
                   variant="secondary"
@@ -424,29 +472,41 @@ export const ProductDetails = () => {
                   + Add Remark
                 </Button>
               </div>
-              <div className="card-pad" style={{ paddingTop: '14px' }}>
+              <div className="card-pad">
                 {!product.remarks || product.remarks.length === 0 ? (
                   <EmptyState
                     icon="💬"
                     title="No remarks recorded"
-                    description="Add technical observations, inspection reports, or restocking reminders."
+                    description="Record initial inspection notes, rack locations, or technician comments."
                   />
                 ) : (
-                  product.remarks.map((rem, i) => (
-                    <div key={rem.id || rem._id || i} className="remark">
-                      <div className="remark-head">
-                        <span className="who">{rem.author || rem.enteredBy}</span>
-                        <span className="when">{rem.date || (rem.enteredAt ? new Date(rem.enteredAt).toISOString().split('T')[0] : '')}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {product.remarks.map((rem, idx) => (
+                      <div
+                        key={rem.id || idx}
+                        style={{
+                          background: 'var(--slate-50)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '12px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          <strong>{rem.author}</strong>
+                          <span>{rem.date}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-800)' }}>
+                          {rem.text}
+                        </p>
                       </div>
-                      <p>{rem.text || rem.remark}</p>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       {/* Admin Add Remark Modal */}
       {isAdmin && (
@@ -490,6 +550,59 @@ export const ProductDetails = () => {
         </Modal>
       )}
 
+      {/* Admin Delete Confirmation Modal */}
+      {isAdmin && (
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          title="Confirm Product Deletion"
+        >
+          <div style={{ padding: '4px 0' }}>
+            <p style={{ fontSize: '0.95rem', color: 'var(--text-800)', marginBottom: '16px' }}>
+              Are you sure you want to delete this product?
+            </p>
+
+            <div
+              style={{
+                background: 'var(--slate-50)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '12px 16px',
+                marginBottom: '16px'
+              }}
+            >
+              <div><strong>Product Code:</strong> {product.productCode}</div>
+              <div><strong>Product Name:</strong> {product.productName || product.name}</div>
+              <div><strong>Current Stock:</strong> {curQty} {product.unit || 'Pieces'}</div>
+            </div>
+
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+              Note: If this product has historical transactions, purchases, transfers, or indents recorded,
+              it will be safely deactivated rather than permanently removed, protecting your historical ledger.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={deleteLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={handleConfirmDelete}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? 'Processing...' : 'Delete Product'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* Admin Edit Modal */}
       {isAdmin && (
         <EditProductModal
@@ -501,83 +614,6 @@ export const ProductDetails = () => {
             loadProductData();
           }}
         />
-      )}
-
-      {/* Faculty Booking Modal */}
-      {!isAdmin && (
-        <Modal
-          isOpen={isBookModalOpen}
-          onClose={() => setIsBookModalOpen(false)}
-          title={`Request Item: ${product.productName || product.name}`}
-        >
-          <form onSubmit={handleBookSubmit}>
-            {bookError && (
-              <div className="login-error-box" style={{ marginBottom: '14px' }}>
-                ⚠ {bookError}
-              </div>
-            )}
-
-            <div
-              style={{
-                background: 'var(--blue-50)',
-                border: '1px solid var(--blue-100)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px',
-                fontSize: '0.84rem',
-                color: 'var(--blue-700)',
-                marginBottom: '16px'
-              }}
-            >
-              <div><strong>Code:</strong> {product.productCode} · <strong>Unit:</strong> {product.unit}</div>
-              <div><strong>Available Stock:</strong> {product.currentQuantity} {product.unit}</div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="modal-book-qty">Quantity Required *</label>
-              <input
-                type="number"
-                id="modal-book-qty"
-                min="1"
-                max={product.currentQuantity > 0 ? product.currentQuantity : undefined}
-                value={bookQuantity}
-                onChange={(e) => setBookQuantity(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="modal-book-purpose">Purpose / Utilization Reason *</label>
-              <textarea
-                id="modal-book-purpose"
-                rows="3"
-                placeholder="State the requirement reason..."
-                value={bookPurpose}
-                onChange={(e) => setBookPurpose(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="modal-book-remarks">Remarks (Optional)</label>
-              <input
-                type="text"
-                id="modal-book-remarks"
-                placeholder="Optional notes..."
-                value={bookRemarks}
-                onChange={(e) => setBookRemarks(e.target.value)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-              <Button type="button" variant="outline" onClick={() => setIsBookModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" disabled={submittingRequest}>
-                {submittingRequest ? 'Submitting...' : 'Submit Requisition'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
       )}
     </Layout>
   );

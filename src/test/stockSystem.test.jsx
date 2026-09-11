@@ -361,7 +361,7 @@ describe('Consumable Stock Management System - MERN Stack Frontend Suite', () =>
 
     await waitFor(() => {
       expect(screen.getByText('Total Products')).toBeInTheDocument();
-      expect(screen.getByText('Total Stock Units')).toBeInTheDocument();
+      expect(screen.getByText('Current Stock')).toBeInTheDocument();
       expect(screen.getByText('Pending Indents')).toBeInTheDocument();
     });
   });
@@ -375,20 +375,20 @@ describe('Consumable Stock Management System - MERN Stack Frontend Suite', () =>
     });
   });
 
-  it('5. Purchase Page: Renders Purchase Intake (Stock IN) and summary cards', async () => {
+  it('5. Purchase Page: Renders Purchase and summary cards', async () => {
     renderWithProviders(<Purchase />, { initialRoute: '/purchases', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Purchase Intake (Stock IN)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Purchase$/i })).toBeInTheDocument();
     expect(screen.getByText('Purchase Intake Summary')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Record Stock Purchase' })).toBeInTheDocument();
     });
   });
 
-  it('6. Transfer Page: Renders Stock Transfer / Issue (Stock OUT)', async () => {
+  it('6. Transfer Page: Renders Transfer and issue form', async () => {
     renderWithProviders(<Transfer />, { initialRoute: '/transfers', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Stock Transfer / Issue (Stock OUT)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Transfer$/i })).toBeInTheDocument();
     expect(screen.getByText('Transfer Statistics')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Issue Department Stock Transfer' })).toBeInTheDocument();
@@ -398,7 +398,7 @@ describe('Consumable Stock Management System - MERN Stack Frontend Suite', () =>
   it('7. Indents Page: Renders requisition records and summary metrics', async () => {
     renderWithProviders(<Indents />, { initialRoute: '/indents', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Online Indent Requisitions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Online Indent Requisitions/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Total Indents')).toBeInTheDocument();
       expect(screen.getByText('Pending Review')).toBeInTheDocument();
@@ -412,15 +412,15 @@ describe('Consumable Stock Management System - MERN Stack Frontend Suite', () =>
       user: mockFacultyUser
     });
 
-    const titleEl = await screen.findByText('Create Material Indent');
+    const titleEl = await screen.findByRole('heading', { name: 'Create Material Indent' });
     expect(titleEl).toBeInTheDocument();
-    expect(screen.getByText(/Online Indent Notice/i)).toBeInTheDocument();
+    expect(screen.getByText(/Requisition Notice/i)).toBeInTheDocument();
   });
 
-  it('9. Stock History: Renders Audit history and filter controls', async () => {
+  it('9. Stock History: Renders Movement history and filter controls', async () => {
     renderWithProviders(<StockHistory />, { initialRoute: '/history', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Stock Audit History' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Stock History' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Total Transactions')).toBeInTheDocument();
     });
@@ -429,7 +429,7 @@ describe('Consumable Stock Management System - MERN Stack Frontend Suite', () =>
   it('10. Low Stock Page: Renders Deficit items and replenishment alerts', async () => {
     renderWithProviders(<LowStock />, { initialRoute: '/low-stock', authenticated: true });
 
-    expect(screen.getByRole('heading', { name: 'Low Stock & Replenishment Alerts' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Low Stock Alerts' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Deficit Inventory Items')).toBeInTheDocument();
     });

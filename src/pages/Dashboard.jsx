@@ -101,28 +101,28 @@ export const Dashboard = () => {
             figure={myTotal}
             icon="▧"
             variant="blue"
-            onClick={() => navigate('/faculty/requests')}
+            onClick={() => navigate('/indents')}
           />
           <StatCard
             label="Pending Approval"
             figure={myPending}
             icon="⏳"
             variant="amber"
-            onClick={() => navigate('/faculty/requests')}
+            onClick={() => navigate('/indents')}
           />
           <StatCard
             label="Approved & Ready"
             figure={myApproved}
             icon="✓"
             variant="green"
-            onClick={() => navigate('/faculty/requests')}
+            onClick={() => navigate('/indents')}
           />
           <StatCard
             label="Rejected"
             figure={myRejected}
             icon="✕"
             variant="red"
-            onClick={() => navigate('/faculty/requests')}
+            onClick={() => navigate('/indents')}
           />
         </div>
 
@@ -130,7 +130,7 @@ export const Dashboard = () => {
         <div className="section">
           <div className="section-head">
             <h2>My Recent Indents</h2>
-            <Link to="/faculty/requests" className="link-subtle">
+            <Link to="/indents" className="link-subtle">
               View all my indents ({myTotal}) →
             </Link>
           </div>

@@ -22,7 +22,6 @@ import Categories from '../pages/Categories';
 import Units from '../pages/Units';
 import StockRegisters from '../pages/StockRegisters';
 import ManageIndents from '../pages/ManageIndents';
-import FacultyRequests from '../pages/FacultyRequests';
 import Notifications from '../pages/Notifications';
 
 export const AppRoutes = () => {
@@ -32,14 +31,7 @@ export const AppRoutes = () => {
       <Route path="/login" element={<Login />} />
 
       {/* Faculty Dedicated Routes */}
-      <Route
-        path="/catalog"
-        element={
-          <ProtectedRoute>
-            <FacultyCatalog />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/catalog" element={<Navigate to="/faculty/catalog" replace />} />
       <Route
         path="/faculty/catalog"
         element={
@@ -48,19 +40,13 @@ export const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/faculty/requests"
-        element={
-          <ProtectedRoute>
-            <FacultyRequests />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/faculty/requests" element={<Navigate to="/indents" replace />} />
       <Route path="/faculty/dashboard" element={<Navigate to="/dashboard" replace />} />
 
       {/* Admin Route Aliases */}
       <Route path="/admin/dashboard" element={<Navigate to="/dashboard" replace />} />
       <Route path="/admin/products" element={<Navigate to="/products" replace />} />
+      <Route path="/admin/indents" element={<Navigate to="/manage-indents" replace />} />
       <Route path="/admin/requests" element={<Navigate to="/manage-indents" replace />} />
       <Route path="/admin/purchases" element={<Navigate to="/purchases" replace />} />
       <Route path="/admin/transfers" element={<Navigate to="/transfers" replace />} />
@@ -91,6 +77,16 @@ export const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <ProductDetails />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/products/:id/edit"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={['ADMIN']}>
+              <ProductDetails initialEdit={true} />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
