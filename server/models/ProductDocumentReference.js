@@ -1,34 +1,37 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const productDocumentReferenceSchema = new mongoose.Schema({
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
+const ProductDocumentReference = sequelize.define('ProductDocumentReference', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
   },
-  stockDocumentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'StockDocument',
-    required: false
+  product_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  stockDocumentName: {
-    type: String,
-    required: true,
-    trim: true,
-    uppercase: true
+  stock_document_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  pageNumber: {
-    type: Number,
-    required: true,
-    min: 1
+  stock_document_name: {
+    type: DataTypes.STRING(150),
+    allowNull: true
   },
-  referenceNote: {
-    type: String,
-    default: ''
+  page_number: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
+  },
+  reference_note: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'product_document_references',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const ProductDocumentReference = mongoose.model('ProductDocumentReference', productDocumentReferenceSchema);
 export default ProductDocumentReference;

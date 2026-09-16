@@ -1,74 +1,63 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
 import bcrypt from 'bcryptjs';
+import sequelize from '../config/mysql.js';
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
   username: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    unique: true
   },
   password: {
-    type: String,
-    required: true
+    type: DataTypes.STRING(255),
+    allowNull: false
   },
   name: {
-    type: String,
-    required: true,
-    trim: true
+    type: DataTypes.STRING(150),
+    allowNull: false
   },
   email: {
-    type: String,
-    trim: true,
-    lowercase: true,
-    default: ''
+    type: DataTypes.STRING(255),
+    allowNull: false,
+    unique: true
   },
-  role: {
-    type: String,
-    enum: ['ADMIN', 'FACULTY'],
-    default: 'FACULTY',
-    uppercase: true
+  role_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  department: {
-    type: String,
-    required: true,
-    default: 'Maintenance Dept.'
+  department_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  departmentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Department',
-    default: null
-  },
-  avatarText: {
-    type: String,
-    default: 'U'
+  avatar_text: {
+    type: DataTypes.STRING(10),
+    allowNull: true
   },
   active: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
-  timestamps: true
+  tableName: 'users',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+User.prototype.comparePassword = async function (enteredPassword) {
+  if (!enteredPassword || !this.password) return false;
+  if (this.password === enteredPassword) return true;
+  try {
+    return await bcrypt.compare(enteredPassword, this.password);
+  } catch (err) {
+    return false;
+  }
 };
 
-// Don't return password in JSON
-userSchema.methods.toJSON = function () {
-  const obj = this.toObject();
-  delete obj.password;
-  return obj;
-};
-
-const User = mongoose.model('User', userSchema);
 export default User;

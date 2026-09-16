@@ -34,9 +34,25 @@ export const IncomingStockForm = () => {
   }, []);
 
   const selectedProduct = products.find(
-    (p) => (p._id || p.id) === selectedProductId || p.productCode === selectedProductId
+    (p) =>
+      String(p._id || p.id) === String(selectedProductId) ||
+      p.productCode === selectedProductId ||
+      p.product_code === selectedProductId
   );
-  const currentStock = selectedProduct ? (selectedProduct.currentQuantity !== undefined ? selectedProduct.currentQuantity : selectedProduct.currentStock) : 0;
+  const currentStock = selectedProduct
+    ? Number(
+        selectedProduct.current_quantity !== undefined
+          ? selectedProduct.current_quantity
+          : (selectedProduct.currentQuantity !== undefined
+              ? selectedProduct.currentQuantity
+              : (selectedProduct.currentStock || 0))
+      )
+    : 0;
+  const productUnit = selectedProduct
+    ? (typeof selectedProduct.unit === 'string'
+        ? selectedProduct.unit
+        : (selectedProduct.unit?.name || selectedProduct.unitName || selectedProduct.unit_name || ''))
+    : '';
   const numQty = Number(quantity) || 0;
   const newCalculatedStock = currentStock + (numQty > 0 ? numQty : 0);
 
@@ -66,13 +82,15 @@ export const IncomingStockForm = () => {
 
         setFeedback({
           type: "success",
-          message: `Stock Updated Successfully: ${prodName} | Previous: ${prev} | Added: +${numQty} | Current: ${cur}`
+          message: `Stock Updated Successfully: ${prodName} | Previous: ${prev} ${productUnit} | Added: +${numQty} ${productUnit} | Current: ${cur} ${productUnit}`
         });
 
         // Update local products list
         setProducts((prevList) =>
           prevList.map((p) =>
-            (p._id || p.id) === selectedProductId ? { ...p, currentQuantity: cur, currentStock: cur } : p
+            String(p._id || p.id) === String(selectedProductId)
+              ? { ...p, currentQuantity: cur, current_quantity: cur, currentStock: cur }
+              : p
           )
         );
 

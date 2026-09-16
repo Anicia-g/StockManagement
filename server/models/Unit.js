@@ -1,24 +1,35 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const unitSchema = new mongoose.Schema({
+const Unit = sequelize.define('Unit', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    unique: true
   },
   symbol: {
-    type: String,
-    trim: true,
-    default: ''
+    type: DataTypes.STRING(30),
+    allowNull: false
+  },
+  description: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   active: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
-  timestamps: true
+  tableName: 'units',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const Unit = mongoose.model('Unit', unitSchema);
 export default Unit;

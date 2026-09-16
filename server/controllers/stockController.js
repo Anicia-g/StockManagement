@@ -1,6 +1,7 @@
-import Product from '../models/Product.js';
-import StockTransaction from '../models/StockTransaction.js';
+import { Product, StockTransaction, Department, User } from '../models/index.js';
 import { recordIncoming, recordOutgoing } from '../services/stockService.js';
+import { formatProduct, formatStockTransaction } from '../utils/formatters.js';
+import { Op } from 'sequelize';
 
 // @desc    Record incoming stock (Stock IN)
 // @route   POST /api/stock/incoming
@@ -17,7 +18,7 @@ export const handleIncomingStock = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: `Stock updated successfully. Added ${result.addedQuantity} units for ${result.product.productName || result.product.name}.`,
+      message: `Stock updated successfully. Added ${result.addedQuantity} units for ${result.product.productName}.`,
       data: result,
       transaction: result.transaction,
       product: result.product,
@@ -52,7 +53,7 @@ export const handleOutgoingStock = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: `Stock issued successfully. Issued ${result.issuedQuantity} units of ${result.product.productName || result.product.name}.`,
+      message: `Stock issued successfully. Issued ${result.issuedQuantity} units of ${result.product.productName}.`,
       data: result,
       transaction: result.transaction,
       product: result.product,
@@ -88,90 +89,74 @@ export const getStockHistory = async (req, res, next) => {
       limit
     } = req.query;
 
-    let query = {};
+    const where = {};
 
     if (productId) {
-      if (productId.match(/^[0-9a-fA-F]{24}$/)) {
-        query.productId = productId;
+      if (String(productId).match(/^\d+$/)) {
+        where.product_id = productId;
       } else {
-        query.productCode = productId.toUpperCase();
+        where['$product.product_code$'] = String(productId).toUpperCase();
       }
     }
 
     if (departmentId) {
-      query.departmentId = departmentId;
+      where.department_id = departmentId;
     } else if (department && department !== 'ALL') {
-      query.department = { $regex: department, $options: 'i' };
+      where['$department.name$'] = { [Op.like]: `%${department.trim()}%` };
     }
 
     const resolvedType = transactionType || type;
     if (resolvedType && resolvedType !== 'ALL') {
       if (resolvedType === 'IN' || resolvedType === 'PURCHASE') {
-        query.transactionType = { $in: ['IN', 'PURCHASE'] };
+        where.transaction_type = 'PURCHASE';
       } else if (resolvedType === 'OUT' || resolvedType === 'TRANSFER') {
-        query.transactionType = { $in: ['OUT', 'TRANSFER'] };
+        where.transaction_type = 'TRANSFER';
       } else {
-        query.transactionType = resolvedType;
+        where.transaction_type = resolvedType;
       }
     }
 
     if (fromDate || toDate) {
-      query.date = {};
-      if (fromDate) query.date.$gte = fromDate;
-      if (toDate) query.date.$lte = toDate;
+      where.transaction_date = {};
+      if (fromDate) where.transaction_date[Op.gte] = new Date(fromDate);
+      if (toDate) where.transaction_date[Op.lte] = new Date(toDate + ' 23:59:59');
     }
 
     if (search) {
-      query.$or = [
-        { productName: { $regex: search, $options: 'i' } },
-        { productCode: { $regex: search, $options: 'i' } },
-        { department: { $regex: search, $options: 'i' } },
-        { recordedBy: { $regex: search, $options: 'i' } },
-        { remarks: { $regex: search, $options: 'i' } },
-        { transactionId: { $regex: search, $options: 'i' } }
+      where[Op.or] = [
+        { transaction_code: { [Op.like]: `%${search.trim()}%` } },
+        { remarks: { [Op.like]: `%${search.trim()}%` } },
+        { '$product.product_name$': { [Op.like]: `%${search.trim()}%` } },
+        { '$product.product_code$': { [Op.like]: `%${search.trim()}%` } },
+        { '$department.name$': { [Op.like]: `%${search.trim()}%` } },
+        { '$recorder.name$': { [Op.like]: `%${search.trim()}%` } }
       ];
     }
 
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const pageSize = Math.max(1, parseInt(limit) || 50);
-    const skip = (pageNum - 1) * pageSize;
-
-    const total = await StockTransaction.countDocuments(query);
-    const transactions = await StockTransaction.find(query)
-      .sort({ createdAt: -1, date: -1 })
-      .skip(skip)
-      .limit(pageSize);
+    const include = [
+      { model: Product, as: 'product' },
+      { model: Department, as: 'department' },
+      { model: User, as: 'recorder' }
+    ];
 
     const [totalPurchases, totalTransfers] = await Promise.all([
-      StockTransaction.countDocuments({ transactionType: { $in: ['PURCHASE', 'IN'] } }),
-      StockTransaction.countDocuments({ transactionType: { $in: ['TRANSFER', 'OUT'] } })
+      StockTransaction.count({ where: { transaction_type: 'PURCHASE' } }),
+      StockTransaction.count({ where: { transaction_type: 'TRANSFER' } })
     ]);
 
-    // Format for frontend with clean PURCHASE and TRANSFER types
-    const formatted = transactions.map(t => {
-      const isPurchase = t.transactionType === 'PURCHASE' || t.transactionType === 'IN';
-      return {
-        id: t._id,
-        _id: t._id,
-        transactionId: t.transactionId,
-        date: t.date,
-        productId: t.productId,
-        productCode: t.productCode,
-        productName: t.productName,
-        stockRegister: t.stockRegister || 'SR1',
-        type: isPurchase ? 'PURCHASE' : 'TRANSFER',
-        transactionType: isPurchase ? 'PURCHASE' : 'TRANSFER',
-        typeLabel: isPurchase ? 'Purchase' : 'Transfer',
-        quantity: Math.abs(t.quantity || 0),
-        previousQuantity: t.previousQuantity,
-        newQuantity: t.newQuantity,
-        department: t.department || 'Store',
-        remarks: t.remarks || '',
-        recordedBy: t.recordedBy || 'Admin',
-        performedBy: t.recordedBy || 'Admin',
-        referenceId: t.referenceId || t.transactionId
-      };
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.max(1, parseInt(limit, 10) || 50);
+
+    const { count: total, rows } = await StockTransaction.findAndCountAll({
+      where,
+      include,
+      order: [['transaction_date', 'DESC'], ['id', 'DESC']],
+      offset: (pageNum - 1) * pageSize,
+      limit: pageSize,
+      distinct: true
     });
+
+    const formatted = rows.map(formatStockTransaction);
 
     res.json({
       success: true,
@@ -195,34 +180,13 @@ export const getStockHistory = async (req, res, next) => {
 // @route   GET /api/stock/low-stock
 export const getLowStockItems = async (req, res, next) => {
   try {
-    const products = await Product.find({ active: true });
+    const products = await Product.findAll({
+      where: { active: true },
+      include: ['category', 'unit', 'stockDocument', 'documentReferences']
+    });
 
-    const lowStockList = [];
-    for (const p of products) {
-      const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
-      if (p.currentQuantity <= min) {
-        lowStockList.push({
-          id: p._id,
-          _id: p._id,
-          productCode: p.productCode,
-          productName: p.productName || p.name,
-          name: p.productName || p.name,
-          category: p.category,
-          unit: p.unit,
-          currentQuantity: p.currentQuantity,
-          currentStock: p.currentQuantity,
-          minimumQuantity: min,
-          minStock: min,
-          minimumStockLevel: min,
-          difference: p.currentQuantity - min,
-          status: 'LOW_STOCK',
-          stockStatus: 'LOW_STOCK',
-          stockRegister: p.stockRegister,
-          pageNumber: p.pageNumber,
-          registerRefs: p.registerRefs
-        });
-      }
-    }
+    const formattedList = products.map(formatProduct);
+    const lowStockList = formattedList.filter(p => p.isLowStock);
 
     res.json({
       success: true,

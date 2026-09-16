@@ -1,66 +1,62 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const transferSchema = new mongoose.Schema({
-  transferId: {
-    type: String,
-    required: true,
+const Transfer = sequelize.define('Transfer', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  transfer_number: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
     unique: true
   },
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
-  },
-  productCode: {
-    type: String,
-    required: true
-  },
-  productName: {
-    type: String,
-    required: true
-  },
-  stockRegister: {
-    type: String,
-    default: 'SR1'
+  product_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
   quantity: {
-    type: Number,
-    required: true,
-    min: 1
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false
   },
-  unit: {
-    type: String,
-    default: 'Pieces'
+  department_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  department: {
-    type: String,
-    required: true
+  issued_to: {
+    type: DataTypes.STRING(150),
+    allowNull: true
   },
-  indentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Indent',
-    default: null
+  issued_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  indentNumber: {
-    type: String,
-    default: null
+  purpose: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
-  issuedBy: {
-    type: String,
-    required: true,
-    default: 'Admin'
+  transfer_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
   },
-  date: {
-    type: String,
-    required: true
+  stock_register_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
+  },
+  page_number: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
   remarks: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'transfers',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const Transfer = mongoose.model('Transfer', transferSchema);
 export default Transfer;

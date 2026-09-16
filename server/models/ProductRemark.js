@@ -1,28 +1,29 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const productRemarkSchema = new mongoose.Schema({
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
+const ProductRemark = sequelize.define('ProductRemark', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  product_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
   remark: {
-    type: String,
-    required: true,
-    trim: true
+    type: DataTypes.TEXT,
+    allowNull: false
   },
-  enteredBy: {
-    type: String,
-    required: true,
-    default: 'Staff'
-  },
-  enteredAt: {
-    type: Date,
-    default: Date.now
+  created_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'product_remarks',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const ProductRemark = mongoose.model('ProductRemark', productRemarkSchema);
 export default ProductRemark;

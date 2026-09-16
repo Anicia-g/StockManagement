@@ -1,15 +1,11 @@
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import sequelize from './mysql.js';
 
 const connectDB = async () => {
   try {
-    const connUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/electrical_stock_db';
-    const conn = await mongoose.connect(connUri);
-    console.log(`MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
+    await sequelize.authenticate();
+    console.log(`✅ MySQL Database Connected: ${process.env.MYSQL_DATABASE || 'consumable_stock_management'} at ${process.env.MYSQL_HOST || '127.0.0.1'}:${process.env.MYSQL_PORT || 3306}`);
   } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
+    console.error(`❌ MySQL Connection Error: ${error.message}`);
     process.exit(1);
   }
 };

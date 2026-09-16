@@ -4,8 +4,8 @@ import app from './app.js';
 
 dotenv.config();
 
-// Connect Database
-connectDB();
+// Connect MySQL Database
+await connectDB();
 
 const PORT = process.env.PORT || 5050;
 

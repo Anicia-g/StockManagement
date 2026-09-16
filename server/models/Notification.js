@@ -1,46 +1,46 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const notificationSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true
+const Notification = sequelize.define('Notification', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
   },
-  message: {
-    type: String,
-    required: true
+  user_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
   type: {
-    type: String,
-    enum: ['LOW_STOCK', 'INDENT_CREATED', 'INDENT_STATUS', 'PURCHASE', 'TRANSFER', 'STOCK_IN', 'STOCK_OUT', 'SYSTEM'],
-    default: 'SYSTEM'
+    type: DataTypes.STRING(50),
+    allowNull: false
   },
-  targetRole: {
-    type: String,
-    enum: ['ADMIN', 'FACULTY', 'ALL'],
-    default: 'ALL'
+  title: {
+    type: DataTypes.STRING(255),
+    allowNull: false
   },
-  targetUserId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
+  message: {
+    type: DataTypes.TEXT,
+    allowNull: false
   },
-  referenceId: {
-    type: String,
-    default: null
+  reference_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  isRead: {
-    type: Boolean,
-    default: false
+  reference_type: {
+    type: DataTypes.STRING(50),
+    allowNull: true
   },
-  readBy: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
-  ]
+  is_read: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  }
 }, {
-  timestamps: true
+  tableName: 'notifications',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;

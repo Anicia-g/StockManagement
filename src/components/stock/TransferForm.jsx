@@ -40,9 +40,48 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
     loadInitialData();
   }, []);
 
-  const selectedProduct = products.find((p) => p._id === selectedProductId);
-  const availableStock = selectedProduct ? selectedProduct.currentQuantity : 0;
-  const minStock = selectedProduct ? (selectedProduct.minimumQuantity !== undefined ? selectedProduct.minimumQuantity : (selectedProduct.minimumStockLevel || 5)) : 0;
+  const selectedProduct = products.find(
+    (p) =>
+      String(p._id) === String(selectedProductId) ||
+      String(p.id) === String(selectedProductId) ||
+      p.productCode === selectedProductId ||
+      p.product_code === selectedProductId
+  );
+
+  const availableStock = selectedProduct
+    ? Number(
+        selectedProduct.current_quantity !== undefined
+          ? selectedProduct.current_quantity
+          : (selectedProduct.currentQuantity !== undefined
+              ? selectedProduct.currentQuantity
+              : (selectedProduct.currentStock !== undefined
+                  ? selectedProduct.currentStock
+                  : (selectedProduct.quantity || 0)))
+      )
+    : 0;
+
+  const productUnit = selectedProduct
+    ? (typeof selectedProduct.unit === 'string'
+        ? selectedProduct.unit
+        : (selectedProduct.unit?.name ||
+           selectedProduct.unitName ||
+           selectedProduct.unit_name ||
+           selectedProduct.unitSymbol ||
+           ''))
+    : '';
+
+  const minStock = selectedProduct
+    ? Number(
+        selectedProduct.minimum_quantity !== undefined
+          ? selectedProduct.minimum_quantity
+          : (selectedProduct.minimumQuantity !== undefined
+              ? selectedProduct.minimumQuantity
+              : (selectedProduct.minimum_stock_level !== undefined
+                  ? selectedProduct.minimum_stock_level
+                  : (selectedProduct.minimumStockLevel || 5)))
+      )
+    : 0;
+
   const numQty = Number(quantity) || 0;
 
   const isOverLimit = numQty > availableStock;
@@ -62,7 +101,7 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
     if (isOverLimit) {
       setFeedback({
         type: 'error',
-        message: `Validation Error: Cannot transfer ${numQty} units. Only ${availableStock} ${selectedProduct?.unit} available in store stock.`
+        message: `Validation Error: Cannot transfer ${numQty} ${productUnit || 'units'}. Only ${availableStock} ${productUnit} available in store stock.`
       });
       return;
     }
@@ -87,13 +126,21 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
 
         const newStockVal =
           res.data?.product?.currentQuantity ??
+          res.data?.product?.current_quantity ??
           res.product?.newQuantity ??
           res.updatedProduct?.currentQuantity ??
           Math.max(0, availableStock - numQty);
 
         setProducts((prev) =>
           prev.map((p) =>
-            p._id === selectedProductId ? { ...p, currentQuantity: newStockVal } : p
+            String(p._id) === String(selectedProductId) || String(p.id) === String(selectedProductId)
+              ? {
+                  ...p,
+                  currentQuantity: Number(newStockVal),
+                  current_quantity: Number(newStockVal),
+                  currentStock: Number(newStockVal)
+                }
+              : p
           )
         );
 
@@ -163,11 +210,27 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
                 }}
                 required
               >
-                {products.map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.name} ({p.productCode}) — Available: {p.currentQuantity} {p.unit} [{p.stockRegister || 'SR1'}]
-                  </option>
-                ))}
+                {products.map((p) => {
+                  const qty = Number(
+                    p.current_quantity !== undefined
+                      ? p.current_quantity
+                      : (p.currentQuantity !== undefined
+                          ? p.currentQuantity
+                          : (p.currentStock || 0))
+                  );
+                  const u = typeof p.unit === 'string'
+                    ? p.unit
+                    : (p.unit?.name || p.unitName || p.unit_name || '');
+                  const pId = p._id !== undefined ? p._id : p.id;
+                  const name = p.name || p.productName || p.product_name;
+                  const code = p.productCode || p.product_code;
+                  const reg = p.stockRegister || 'SR1';
+                  return (
+                    <option key={pId} value={pId}>
+                      {name} ({code}) — Available: {qty} {u} [{reg}]
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -175,7 +238,8 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
               <label>Available Stock in Store</label>
               <input
                 type="text"
-                value={`${availableStock} ${selectedProduct?.unit || 'Pieces'}`}
+                id="transfer-available-stock"
+                value={selectedProduct ? `${availableStock} ${productUnit}`.trim() : ''}
                 disabled
               />
             </div>
@@ -197,7 +261,7 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
               />
               {isOverLimit && (
                 <div className="field-error">
-                  Requested quantity exceeds available store stock ({availableStock} max).
+                  Requested quantity exceeds available store stock ({availableStock} {productUnit} max).
                 </div>
               )}
             </div>
@@ -211,7 +275,7 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
                 required
               >
                 {departments.map((d) => (
-                  <option key={d._id || d.name || d} value={d.name || d}>
+                  <option key={d._id || d.id || d.name || d} value={d.name || d}>
                     {d.name || d}
                   </option>
                 ))}
@@ -254,13 +318,13 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
 
           {isOverLimit && (
             <div className="alert-box">
-              ⚠ Cannot transfer: The requested quantity ({numQty}) exceeds available store stock ({availableStock}).
+              ⚠ Cannot transfer: The requested quantity ({numQty} {productUnit}) exceeds available store stock ({availableStock} {productUnit}).
             </div>
           )}
 
           {willBeLowStock && (
             <div className="warning-box">
-              ⚠ Transferring {numQty} units will reduce available stock to {remainingStock}, which is at or below the minimum stock level ({minStock}). This item will trigger a low stock alert.
+              ⚠ Transferring {numQty} {productUnit} will reduce available stock to {remainingStock} {productUnit}, which is at or below the minimum stock level ({minStock} {productUnit}). This item will trigger a low stock alert.
             </div>
           )}
 

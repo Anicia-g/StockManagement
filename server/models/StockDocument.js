@@ -1,24 +1,35 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const stockDocumentSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    uppercase: true
+const StockDocument = sequelize.define('StockDocument', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  document_code: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    unique: true
+  },
+  document_name: {
+    type: DataTypes.STRING(150),
+    allowNull: false
   },
   description: {
-    type: String,
-    default: ''
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   active: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
-  timestamps: true
+  tableName: 'stock_documents',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const StockDocument = mongoose.model('StockDocument', stockDocumentSchema);
 export default StockDocument;

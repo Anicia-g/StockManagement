@@ -1,24 +1,26 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const roleSchema = new mongoose.Schema({
+const Role = sequelize.define('Role', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: true,
-    unique: true,
-    enum: ['ADMIN', 'FACULTY'],
-    uppercase: true,
-    trim: true
+    type: DataTypes.STRING(30),
+    allowNull: false,
+    unique: true
   },
   description: {
-    type: String,
-    default: ''
-  },
-  permissions: [{
-    type: String
-  }]
+    type: DataTypes.STRING(255),
+    allowNull: true
+  }
 }, {
-  timestamps: true
+  tableName: 'roles',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const Role = mongoose.model('Role', roleSchema);
 export default Role;
