@@ -1,70 +1,66 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const purchaseSchema = new mongoose.Schema({
-  purchaseId: {
-    type: String,
-    required: true,
+const Purchase = sequelize.define('Purchase', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  purchase_number: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
     unique: true
   },
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
-  },
-  productCode: {
-    type: String,
-    required: true
-  },
-  productName: {
-    type: String,
-    required: true
-  },
-  stockRegister: {
-    type: String,
-    default: 'SR1'
+  product_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
   quantity: {
-    type: Number,
-    required: true,
-    min: 1
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false
   },
-  unit: {
-    type: String,
-    default: 'Pieces'
+  unit_price: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true
+  },
+  total_amount: {
+    type: DataTypes.DECIMAL(14, 2),
+    allowNull: true
   },
   supplier: {
-    type: String,
-    required: true,
-    default: 'Standard Supplier'
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
-  invoiceNumber: {
-    type: String,
-    default: ''
+  invoice_number: {
+    type: DataTypes.STRING(100),
+    allowNull: true
   },
-  unitPrice: {
-    type: Number,
-    default: 0
+  purchase_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
   },
-  totalAmount: {
-    type: Number,
-    default: 0
+  stock_register_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  date: {
-    type: String,
-    required: true
-  },
-  recordedBy: {
-    type: String,
-    required: true,
-    default: 'Admin'
+  page_number: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
   remarks: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  recorded_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'purchases',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const Purchase = mongoose.model('Purchase', purchaseSchema);
 export default Purchase;

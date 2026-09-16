@@ -1,80 +1,91 @@
-import Indent from '../models/Indent.js';
+import { Indent, IndentItem, Product, Department, User, sequelize } from '../models/index.js';
 import {
   createIndent as createIndentService,
   submitIndent as submitIndentService,
-  recommendIndent as recommendIndentService,
   approveIndent as approveIndentService,
-  rejectIndent as rejectIndentService,
-  issueIndent as issueIndentService
+  rejectIndent as rejectIndentService
 } from '../services/indentService.js';
+import { formatIndent } from '../utils/formatters.js';
+import { Op } from 'sequelize';
+
+const INDENT_INCLUDES = [
+  { model: Department, as: 'department' },
+  { model: User, as: 'requester' },
+  {
+    model: IndentItem,
+    as: 'items',
+    include: [{ model: Product, as: 'product', include: ['unit'] }]
+  }
+];
+
+// Helper to find indent by id or indent_number
+const findIndent = async (identifier) => {
+  if (!identifier) return null;
+  let indent = null;
+  if (String(identifier).match(/^\d+$/)) {
+    indent = await Indent.findByPk(identifier, { include: INDENT_INCLUDES });
+  }
+  if (!indent) {
+    indent = await Indent.findOne({
+      where: { indent_number: String(identifier).toUpperCase() },
+      include: INDENT_INCLUDES
+    });
+  }
+  return indent;
+};
 
 // @desc    Get all indents with filters
 // @route   GET /api/indents
 export const getIndents = async (req, res, next) => {
   try {
     const { status, department, search, page, limit } = req.query;
-    const conditions = [];
+    const where = {};
 
-    // Role filtering: Faculty sees only their own or their department's indents
+    // Role filtering: Faculty sees only their own indents
     if (req.user && req.user.role === 'FACULTY') {
-      conditions.push({
-        $or: [
-          { requesterId: req.user._id },
-          { requestedBy: { $regex: req.user.name, $options: 'i' } },
-          { department: req.user.department },
-          { requestingDepartment: req.user.department }
-        ]
-      });
+      where.requested_by = req.user.id;
     }
 
     if (status && status !== 'ALL') {
-      conditions.push({ status });
+      where.status = status;
     }
 
     if (department && department !== 'ALL') {
-      conditions.push({
-        $or: [
-          { department: { $regex: department, $options: 'i' } },
-          { requestingDepartment: { $regex: department, $options: 'i' } }
-        ]
-      });
+      where['$department.name$'] = { [Op.like]: `%${department.trim()}%` };
     }
 
     if (search) {
-      conditions.push({
-        $or: [
-          { indentNumber: { $regex: search, $options: 'i' } },
-          { purpose: { $regex: search, $options: 'i' } },
-          { requestedBy: { $regex: search, $options: 'i' } },
-          { requesterName: { $regex: search, $options: 'i' } },
-          { department: { $regex: search, $options: 'i' } },
-          { 'items.productName': { $regex: search, $options: 'i' } },
-          { 'items.productCode': { $regex: search, $options: 'i' } }
-        ]
-      });
+      where[Op.or] = [
+        { indent_number: { [Op.like]: `%${search.trim()}%` } },
+        { remarks: { [Op.like]: `%${search.trim()}%` } },
+        { '$requester.name$': { [Op.like]: `%${search.trim()}%` } },
+        { '$department.name$': { [Op.like]: `%${search.trim()}%` } }
+      ];
     }
 
-    const query = conditions.length > 0 ? { $and: conditions } : {};
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.max(1, parseInt(limit, 10) || 50);
 
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const pageSize = Math.max(1, parseInt(limit) || 50);
-    const skip = (pageNum - 1) * pageSize;
+    const { count: total, rows } = await Indent.findAndCountAll({
+      where,
+      include: INDENT_INCLUDES,
+      order: [['id', 'DESC']],
+      offset: (pageNum - 1) * pageSize,
+      limit: pageSize,
+      distinct: true
+    });
 
-    const total = await Indent.countDocuments(query);
-    const indents = await Indent.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(pageSize);
+    const formatted = rows.map(formatIndent);
 
     res.json({
       success: true,
-      count: indents.length,
+      count: formatted.length,
       total,
       page: pageNum,
       totalPages: Math.ceil(total / pageSize),
       limit: pageSize,
-      indents,
-      data: indents
+      indents: formatted,
+      data: formatted
     });
   } catch (error) {
     next(error);
@@ -85,19 +96,13 @@ export const getIndents = async (req, res, next) => {
 // @route   GET /api/indents/:id
 export const getIndentById = async (req, res, next) => {
   try {
-    let indent = null;
-    if (req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-      indent = await Indent.findById(req.params.id);
-    }
-    if (!indent) {
-      indent = await Indent.findOne({ indentNumber: req.params.id.toUpperCase() });
-    }
-
+    const indent = await findIndent(req.params.id);
     if (!indent) {
       return res.status(404).json({ success: false, message: 'Indent not found.' });
     }
 
-    res.json({ success: true, indent, data: indent });
+    const formatted = formatIndent(indent);
+    res.json({ success: true, indent: formatted, data: formatted });
   } catch (error) {
     next(error);
   }
@@ -110,6 +115,7 @@ export const createIndent = async (req, res, next) => {
     const {
       indentNumber,
       department,
+      departmentId,
       requestingDepartment,
       purpose,
       requiredDate,
@@ -124,6 +130,7 @@ export const createIndent = async (req, res, next) => {
     const indent = await createIndentService({
       indentNumber,
       department,
+      departmentId,
       requestingDepartment,
       purpose,
       requiredDate,
@@ -147,26 +154,23 @@ export const createIndent = async (req, res, next) => {
 // @route   PUT /api/indents/:id
 export const updateIndent = async (req, res, next) => {
   try {
-    const indent = await Indent.findById(req.params.id);
+    const indent = await findIndent(req.params.id);
     if (!indent) {
       return res.status(404).json({ success: false, message: 'Indent not found.' });
     }
 
-    if (indent.status !== 'DRAFT') {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot edit indent with status "${indent.status}". Only DRAFT indents can be updated.`
-      });
+    const { purpose, remarks, status } = req.body;
+    if (remarks !== undefined || purpose !== undefined) {
+      indent.remarks = remarks || purpose;
     }
-
-    const { purpose, requiredDate, remarks, items } = req.body;
-    if (purpose) indent.purpose = purpose;
-    if (requiredDate) indent.requiredDate = requiredDate;
-    if (remarks !== undefined) indent.remarks = remarks;
-    if (Array.isArray(items)) indent.items = items;
-
+    if (status) {
+      indent.status = status;
+    }
     await indent.save();
-    res.json({ success: true, message: 'Indent updated successfully.', indent, data: indent });
+
+    const refreshed = await findIndent(indent.id);
+    const formatted = formatIndent(refreshed);
+    res.json({ success: true, message: 'Indent updated successfully.', indent: formatted, data: formatted });
   } catch (error) {
     next(error);
   }
@@ -176,30 +180,93 @@ export const updateIndent = async (req, res, next) => {
 // @route   POST /api/indents/:id/submit
 export const submitIndent = async (req, res, next) => {
   try {
-    const indent = await submitIndentService(req.params.id, req.user);
-    res.json({ success: true, message: 'Indent submitted for review.', indent, data: indent });
+    const indent = await findIndent(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
+    }
+
+    indent.status = 'SUBMITTED';
+    await indent.save();
+
+    const refreshed = await findIndent(indent.id);
+    const formatted = formatIndent(refreshed);
+    res.json({ success: true, message: 'Indent submitted for review.', indent: formatted, data: formatted });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Recommend indent (SUBMITTED -> RECOMMENDED)
+// @desc    Review indent (Approve / Reject / Change status from admin)
+// @route   POST /api/indents/:id/review
+export const reviewIndent = async (req, res, next) => {
+  try {
+    const { action, approvedItems, adminRemarks, status } = req.body;
+    const indent = await findIndent(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
+    }
+
+    if (action === 'REJECT') {
+      const result = await rejectIndentService(indent.id, { remarks: adminRemarks }, req.user);
+      return res.json({ success: true, message: 'Indent rejected.', indent: result, data: result });
+    }
+
+    if (action === 'UNDER_REVIEW' || status === 'UNDER_REVIEW') {
+      indent.status = 'UNDER_REVIEW';
+      if (adminRemarks) {
+        indent.remarks = `${indent.remarks ? indent.remarks + ' | ' : ''}Review: ${adminRemarks}`;
+      }
+      await indent.save();
+      const refreshed = await findIndent(indent.id);
+      const formatted = formatIndent(refreshed);
+      return res.json({ success: true, message: 'Indent moved to UNDER_REVIEW.', indent: formatted, data: formatted });
+    }
+
+    const result = await approveIndentService(indent.id, {
+      approvals: approvedItems,
+      remarks: adminRemarks
+    }, req.user);
+
+    res.json({ success: true, message: 'Indent review completed.', indent: result, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Recommend indent (SUBMITTED -> UNDER_REVIEW)
 // @route   POST /api/indents/:id/recommend
 export const recommendIndent = async (req, res, next) => {
   try {
-    const indent = await recommendIndentService(req.params.id, req.body, req.user);
-    res.json({ success: true, message: 'Indent recommended successfully.', indent, data: indent });
+    const indent = await findIndent(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
+    }
+
+    indent.status = 'UNDER_REVIEW';
+    if (req.body.remarks) {
+      indent.remarks = `${indent.remarks ? indent.remarks + ' | ' : ''}Recommendation: ${req.body.remarks}`;
+    }
+    await indent.save();
+
+    const refreshed = await findIndent(indent.id);
+    const formatted = formatIndent(refreshed);
+    res.json({ success: true, message: 'Indent status changed to UNDER_REVIEW.', indent: formatted, data: formatted });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Approve indent (RECOMMENDED / SUBMITTED -> APPROVED)
+// @desc    Approve indent (SUBMITTED / UNDER_REVIEW -> APPROVED)
 // @route   POST /api/indents/:id/approve
 export const approveIndent = async (req, res, next) => {
   try {
-    const indent = await approveIndentService(req.params.id, req.body, req.user);
-    res.json({ success: true, message: 'Indent approved successfully.', indent, data: indent });
+    const indent = await findIndent(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
+    }
+
+    const result = await approveIndentService(indent.id, req.body, req.user);
+    res.json({ success: true, message: 'Indent approved successfully.', indent: result, data: result });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -209,47 +276,40 @@ export const approveIndent = async (req, res, next) => {
 // @route   POST /api/indents/:id/reject
 export const rejectIndent = async (req, res, next) => {
   try {
-    const indent = await rejectIndentService(req.params.id, req.body, req.user);
-    res.json({ success: true, message: 'Indent rejected.', indent, data: indent });
+    const indent = await findIndent(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
+    }
+
+    const result = await rejectIndentService(indent.id, req.body, req.user);
+    res.json({ success: true, message: 'Indent rejected.', indent: result, data: result });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Issue approved stock against indent
+// @desc    Issue indent (For backward compatibility with existing route)
 // @route   POST /api/indents/:id/issue
 export const issueIndent = async (req, res, next) => {
   try {
-    const result = await issueIndentService(req.params.id, req.body, req.user);
-    res.json({
-      success: true,
-      message: `Stock successfully issued against Indent ${result.indent.indentNumber}.`,
-      data: result,
-      indent: result.indent,
-      transactions: result.transactions
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-// @desc    Review indent (Approve / Reject modal from frontend)
-// @route   POST /api/indents/:id/review
-export const reviewIndent = async (req, res, next) => {
-  try {
-    const { action, approvedItems, adminRemarks } = req.body;
-
-    if (action === 'REJECT') {
-      const indent = await rejectIndentService(req.params.id, { remarks: adminRemarks }, req.user);
-      return res.json({ success: true, message: 'Indent rejected.', indent, data: indent });
+    const indent = await findIndent(req.params.id);
+    if (!indent) {
+      return res.status(404).json({ success: false, message: 'Indent not found.' });
     }
 
-    const indent = await approveIndentService(req.params.id, {
-      approvals: approvedItems,
-      remarks: adminRemarks
-    }, req.user);
+    indent.status = 'COMPLETED';
+    await indent.save();
 
-    res.json({ success: true, message: 'Indent review completed.', indent, data: indent });
+    const refreshed = await findIndent(indent.id);
+    const formatted = formatIndent(refreshed);
+
+    res.json({
+      success: true,
+      message: `Indent ${formatted.indentNumber} marked as completed.`,
+      indent: formatted,
+      data: formatted,
+      transactions: []
+    });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -259,26 +319,22 @@ export const reviewIndent = async (req, res, next) => {
 // @route   POST /api/indents/:id/complete
 export const completeIndent = async (req, res, next) => {
   try {
-    const indent = await Indent.findById(req.params.id);
+    const indent = await findIndent(req.params.id);
     if (!indent) {
       return res.status(404).json({ success: false, message: 'Indent not found.' });
-    }
-
-    if (!['APPROVED', 'PARTIALLY_APPROVED', 'ISSUED', 'PARTIALLY_ISSUED'].includes(indent.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot complete indent with status "${indent.status}". Indent must be APPROVED.`
-      });
     }
 
     indent.status = 'COMPLETED';
     await indent.save();
 
+    const refreshed = await findIndent(indent.id);
+    const formatted = formatIndent(refreshed);
+
     res.json({
       success: true,
-      message: `Indent ${indent.indentNumber} marked as completed (physically fulfilled).`,
-      indent,
-      data: indent
+      message: `Indent ${formatted.indentNumber} marked as completed (physically fulfilled).`,
+      indent: formatted,
+      data: formatted
     });
   } catch (error) {
     next(error);

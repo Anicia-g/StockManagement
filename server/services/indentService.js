@@ -1,235 +1,231 @@
-import Indent from '../models/Indent.js';
-import Product from '../models/Product.js';
-import Notification from '../models/Notification.js';
-import { recordOutgoing } from './stockService.js';
+import { sequelize, Indent, IndentItem, Product, Department, Notification, User, Role } from '../models/index.js';
 import { generateIndentNumber } from '../utils/codeGenerator.js';
+import { formatIndent } from '../utils/formatters.js';
 
 export const createIndent = async ({
   indentNumber,
   requestingDepartment,
   department,
+  departmentId,
   purpose,
   requiredDate,
   remarks,
   items,
   user
 }) => {
-  const dept = requestingDepartment || department || user?.department || 'Maintenance Dept.';
-  const genIndentNumber = indentNumber || await generateIndentNumber();
-
-  // Process items
-  const processedItems = [];
-  for (const item of items) {
-    let product = null;
-    if (item.productId && String(item.productId).match(/^[0-9a-fA-F]{24}$/)) {
-      product = await Product.findById(item.productId);
-    }
-    if (!product && item.productCode) {
-      product = await Product.findOne({ productCode: item.productCode.toUpperCase() });
-    }
-
-    if (!product) {
-      throw new Error(`Product not found for code/ID: ${item.productCode || item.productId}`);
-    }
-
-    const qty = Number(item.quantityRequired || item.requestedQuantity || item.quantity);
-    if (!qty || qty <= 0) {
-      throw new Error(`Valid quantity is required for item ${product.productName || product.name}.`);
-    }
-
-    processedItems.push({
-      productId: product._id,
-      productCode: product.productCode,
-      productName: product.productName || product.name,
-      stockRegister: product.stockRegister || 'SR1',
-      unit: product.unit || 'Pieces',
-      availableQuantityAtRequest: product.currentQuantity,
-      quantityRequired: qty,
-      requestedQuantity: qty,
-      quantityRecommended: 0,
-      quantityApproved: qty,
-      approvedQuantity: qty,
-      quantityIssued: 0,
-      lineRemarks: item.lineRemarks || item.remarks || ''
-    });
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new Error('At least one item is required in the indent.');
   }
 
-  const indent = await Indent.create({
-    indentNumber: genIndentNumber,
-    requestDate: new Date().toISOString().split('T')[0],
-    date: new Date().toISOString().split('T')[0],
-    requiredDate: requiredDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-    requestingDepartment: dept,
-    department: dept,
-    departmentId: user?.departmentId || null,
-    requestedBy: user?.name ? `${user.name} (${user.role})` : 'Faculty / Staff',
-    requesterName: user?.name || 'Staff',
-    requesterId: user?._id || null,
-    purpose: purpose || 'Departmental Consumables Requirement',
-    remarks: remarks || '',
-    status: 'SUBMITTED',
-    items: processedItems
+  return await sequelize.transaction(async (t) => {
+    // Resolve department ID
+    let resolvedDeptId = departmentId;
+    if (!resolvedDeptId) {
+      const deptName = requestingDepartment || department || user?.department;
+      if (deptName) {
+        const deptDoc = await Department.findOne({
+          where: { name: deptName },
+          transaction: t
+        });
+        if (deptDoc) resolvedDeptId = deptDoc.id;
+      }
+    }
+    if (!resolvedDeptId) {
+      resolvedDeptId = user?.department_id || 1;
+    }
+
+    const genIndentNumber = indentNumber || await generateIndentNumber();
+    const userRemarks = remarks || purpose || 'Faculty Material Requisition';
+
+    // 1. Create Indent record (SUBMITTED) - DOES NOT REDUCE STOCK
+    const indent = await Indent.create({
+      indent_number: genIndentNumber,
+      department_id: resolvedDeptId,
+      requested_by: user?.id || 2,
+      status: 'SUBMITTED',
+      remarks: userRemarks
+    }, { transaction: t });
+
+    // 2. Create IndentItem records
+    for (const item of items) {
+      let product = null;
+      if (item.productId && String(item.productId).match(/^\d+$/)) {
+        product = await Product.findByPk(item.productId, { transaction: t });
+      }
+      if (!product && item.productCode) {
+        product = await Product.findOne({
+          where: { product_code: String(item.productCode).toUpperCase() },
+          transaction: t
+        });
+      }
+
+      if (!product) {
+        throw new Error(`Product not found for code/ID: ${item.productCode || item.productId}`);
+      }
+
+      const qty = Number(item.quantityRequired || item.requestedQuantity || item.quantity);
+      if (!qty || qty <= 0) {
+        throw new Error(`Valid quantity > 0 is required for item ${product.product_name}.`);
+      }
+
+      await IndentItem.create({
+        indent_id: indent.id,
+        product_id: product.id,
+        requested_quantity: qty,
+        approved_quantity: 0,
+        issued_quantity: 0,
+        remarks: item.remarks || item.lineRemarks || ''
+      }, { transaction: t });
+    }
+
+    // 3. Create ADMIN notification for new indent
+    let adminUser = await User.findOne({
+      include: [{ model: Role, as: 'role', where: { name: 'ADMIN' } }],
+      transaction: t
+    });
+    const adminUserId = adminUser ? adminUser.id : 1;
+
+    await Notification.create({
+      user_id: adminUserId,
+      type: 'INDENT_CREATED',
+      title: 'New Indent Request Submitted',
+      message: `A new indent ${indent.indent_number} has been submitted by ${user?.name || 'Faculty User'}.`,
+      reference_id: indent.id,
+      reference_type: 'INDENT',
+      is_read: false
+    }, { transaction: t });
+
+    // Return full formatted indent
+    const fullIndent = await Indent.findByPk(indent.id, {
+      include: [
+        { model: Department, as: 'department' },
+        { model: User, as: 'requester' },
+        {
+          model: IndentItem,
+          as: 'items',
+          include: [{ model: Product, as: 'product', include: ['unit'] }]
+        }
+      ],
+      transaction: t
+    });
+
+    return formatIndent(fullIndent);
   });
-
-  await Notification.create({
-    title: 'New Indent Request Submitted',
-    message: `Indent ${indent.indentNumber} submitted by ${dept} (${indent.items.length} items).`,
-    type: 'INDENT_CREATED',
-    targetRole: 'ADMIN',
-    referenceId: indent.indentNumber
-  }).catch(e => console.error(e));
-
-  return indent;
 };
 
 export const submitIndent = async (indentId, user) => {
-  const indent = await Indent.findById(indentId);
+  const indent = await Indent.findByPk(indentId);
   if (!indent) throw new Error('Indent not found.');
-  if (indent.status !== 'DRAFT') {
-    throw new Error(`Cannot submit indent with status "${indent.status}". Must be DRAFT.`);
-  }
 
   indent.status = 'SUBMITTED';
   await indent.save();
-  return indent;
+
+  const refreshed = await Indent.findByPk(indent.id, {
+    include: [
+      { model: Department, as: 'department' },
+      { model: User, as: 'requester' },
+      {
+        model: IndentItem,
+        as: 'items',
+        include: [{ model: Product, as: 'product', include: ['unit'] }]
+      }
+    ]
+  });
+
+  return formatIndent(refreshed);
 };
 
-export const recommendIndent = async (indentId, { recommendedBy, recommendations, remarks }, user) => {
-  const indent = await Indent.findById(indentId);
-  if (!indent) throw new Error('Indent not found.');
-  if (indent.status !== 'SUBMITTED') {
-    throw new Error(`Cannot recommend indent with status "${indent.status}". Must be SUBMITTED.`);
-  }
-
-  indent.recommendedBy = recommendedBy || user?.name || 'HOD / Section Head';
-  if (remarks) indent.remarks = `${indent.remarks ? indent.remarks + ' | ' : ''}Recommendation: ${remarks}`;
-
-  if (Array.isArray(recommendations)) {
-    recommendations.forEach(rec => {
-      const item = indent.items.id(rec.itemId) || indent.items.find(i => String(i.productId) === String(rec.productId));
-      if (item && rec.quantityRecommended !== undefined) {
-        item.quantityRecommended = Number(rec.quantityRecommended);
-      }
-    });
-  }
-
-  indent.status = 'RECOMMENDED';
-  await indent.save();
-  return indent;
-};
-
-export const approveIndent = async (indentId, { approvedBy, approvals, remarks }, user) => {
-  const indent = await Indent.findById(indentId);
+export const approveIndent = async (indentId, { approvals, remarks }, user) => {
+  const indent = await Indent.findByPk(indentId, {
+    include: [{ model: IndentItem, as: 'items' }]
+  });
   if (!indent) throw new Error('Indent not found.');
 
-  indent.approvedBy = approvedBy || user?.name || 'Admin';
-  indent.approvedAt = new Date();
-  if (remarks) indent.adminRemarks = remarks;
+  await sequelize.transaction(async (t) => {
+    indent.status = 'APPROVED';
+    if (remarks) {
+      indent.remarks = `${indent.remarks ? indent.remarks + ' | ' : ''}Approved: ${remarks}`;
+    }
+    await indent.save({ transaction: t });
 
-  if (Array.isArray(approvals)) {
-    approvals.forEach(app => {
-      const item = indent.items.id(app.itemId) || indent.items.find(i => String(i.productId) === String(app.productId));
-      if (item && (app.quantityApproved !== undefined || app.approvedQuantity !== undefined)) {
-        const qty = Number(app.quantityApproved !== undefined ? app.quantityApproved : app.approvedQuantity);
-        item.quantityApproved = qty;
-        item.approvedQuantity = qty;
+    // Update approved quantities for items
+    if (Array.isArray(approvals) && approvals.length > 0) {
+      for (const app of approvals) {
+        const item = indent.items.find(i => i.id === app.itemId || i.product_id === app.productId);
+        if (item) {
+          const qty = Number(app.approvedQuantity !== undefined ? app.approvedQuantity : app.quantityApproved);
+          item.approved_quantity = isNaN(qty) ? item.requested_quantity : qty;
+          await item.save({ transaction: t });
+        }
       }
-    });
-  } else {
-    // If not specified line-by-line, approve requested/recommended quantity
-    indent.items.forEach(item => {
-      item.quantityApproved = item.quantityRecommended || item.quantityRequired;
-      item.approvedQuantity = item.quantityApproved;
-    });
-  }
+    } else {
+      for (const item of indent.items) {
+        item.approved_quantity = item.requested_quantity;
+        await item.save({ transaction: t });
+      }
+    }
 
-  indent.status = 'APPROVED';
-  await indent.save();
+    // Create notification for requesting faculty user
+    await Notification.create({
+      user_id: indent.requested_by,
+      type: 'INDENT_APPROVED',
+      title: 'Indent Request Approved',
+      message: `Your indent ${indent.indent_number} has been APPROVED by Administrator.`,
+      reference_id: indent.id,
+      reference_type: 'INDENT',
+      is_read: false
+    }, { transaction: t });
+  });
 
-  await Notification.create({
-    title: 'Indent Approved',
-    message: `Indent ${indent.indentNumber} has been approved by Admin.`,
-    type: 'INDENT_STATUS',
-    targetRole: 'FACULTY',
-    targetUserId: indent.requesterId || null,
-    referenceId: indent.indentNumber
-  }).catch(e => console.error(e));
+  const refreshed = await Indent.findByPk(indent.id, {
+    include: [
+      { model: Department, as: 'department' },
+      { model: User, as: 'requester' },
+      {
+        model: IndentItem,
+        as: 'items',
+        include: [{ model: Product, as: 'product', include: ['unit'] }]
+      }
+    ]
+  });
 
-  return indent;
+  return formatIndent(refreshed);
 };
 
 export const rejectIndent = async (indentId, { remarks }, user) => {
-  const indent = await Indent.findById(indentId);
+  const indent = await Indent.findByPk(indentId);
   if (!indent) throw new Error('Indent not found.');
 
-  indent.status = 'REJECTED';
-  if (remarks) indent.adminRemarks = remarks;
-  await indent.save();
+  await sequelize.transaction(async (t) => {
+    indent.status = 'REJECTED';
+    if (remarks) {
+      indent.remarks = `${indent.remarks ? indent.remarks + ' | ' : ''}Rejected: ${remarks}`;
+    }
+    await indent.save({ transaction: t });
 
-  await Notification.create({
-    title: 'Indent Rejected',
-    message: `Indent ${indent.indentNumber} was rejected.${remarks ? ` Remarks: ${remarks}` : ''}`,
-    type: 'INDENT_STATUS',
-    targetRole: 'FACULTY',
-    targetUserId: indent.requesterId || null,
-    referenceId: indent.indentNumber
-  }).catch(e => console.error(e));
-
-  return indent;
-};
-
-export const issueIndent = async (indentId, { issuedItems, remarks }, user) => {
-  const indent = await Indent.findById(indentId);
-  if (!indent) throw new Error('Indent not found.');
-
-  if (!['APPROVED', 'PARTIALLY_ISSUED'].includes(indent.status)) {
-    throw new Error(`Cannot issue stock for indent with status "${indent.status}". Indent must be APPROVED.`);
-  }
-
-  const transactions = [];
-  const itemsToIssue = Array.isArray(issuedItems) ? issuedItems : indent.items.map(i => ({
-    itemId: i._id,
-    productId: i.productId,
-    quantityToIssue: (i.quantityApproved || i.approvedQuantity || i.quantityRequired) - (i.quantityIssued || 0)
-  }));
-
-  for (const issueReq of itemsToIssue) {
-    const item = indent.items.id(issueReq.itemId) || indent.items.find(i => String(i.productId) === String(issueReq.productId));
-    if (!item) continue;
-
-    const qtyToIssue = Number(issueReq.quantityToIssue || issueReq.quantity || issueReq.quantityIssued);
-    if (qtyToIssue <= 0) continue;
-
-    // Call stock outgoing service
-    const stockResult = await recordOutgoing({
-      productId: String(item.productId),
-      quantity: qtyToIssue,
-      department: indent.department || indent.requestingDepartment,
-      indentDetailId: item._id,
-      date: new Date().toISOString().split('T')[0],
-      remarks: remarks || `Issued against Indent ${indent.indentNumber}`,
-      user
-    });
-
-    item.quantityIssued = (item.quantityIssued || 0) + qtyToIssue;
-    transactions.push(stockResult.transaction);
-  }
-
-  // Update indent status
-  const allCompleted = indent.items.every(item => {
-    const targetQty = item.quantityApproved || item.approvedQuantity || item.quantityRequired;
-    return (item.quantityIssued || 0) >= targetQty;
+    // Create notification for requesting faculty user
+    await Notification.create({
+      user_id: indent.requested_by,
+      type: 'INDENT_REJECTED',
+      title: 'Indent Request Rejected',
+      message: `Your indent ${indent.indent_number} was REJECTED.${remarks ? ` Reason: ${remarks}` : ''}`,
+      reference_id: indent.id,
+      reference_type: 'INDENT',
+      is_read: false
+    }, { transaction: t });
   });
 
-  const anyIssued = indent.items.some(item => (item.quantityIssued || 0) > 0);
+  const refreshed = await Indent.findByPk(indent.id, {
+    include: [
+      { model: Department, as: 'department' },
+      { model: User, as: 'requester' },
+      {
+        model: IndentItem,
+        as: 'items',
+        include: [{ model: Product, as: 'product', include: ['unit'] }]
+      }
+    ]
+  });
 
-  indent.status = allCompleted ? 'ISSUED' : anyIssued ? 'PARTIALLY_ISSUED' : 'APPROVED';
-  await indent.save();
-
-  return {
-    success: true,
-    indent,
-    transactions,
-    status: indent.status
-  };
+  return formatIndent(refreshed);
 };

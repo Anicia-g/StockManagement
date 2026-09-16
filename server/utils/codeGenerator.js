@@ -1,15 +1,22 @@
-import Product from '../models/Product.js';
-import Purchase from '../models/Purchase.js';
-import Transfer from '../models/Transfer.js';
-import Indent from '../models/Indent.js';
+import { Product, Purchase, Transfer, Indent } from '../models/index.js';
+import { Op } from 'sequelize';
 
 /**
- * Helper to find max numeric suffix for a given prefix and collection
+ * Helper to find max numeric suffix for a given prefix and table column in MySQL
  */
 const getNextSequence = async (Model, field, prefix) => {
   try {
+    const items = await Model.findAll({
+      attributes: [field],
+      where: {
+        [field]: {
+          [Op.like]: `${prefix}-%`
+        }
+      },
+      raw: true
+    });
+
     const regex = new RegExp(`^${prefix}-(\\d+)$`, 'i');
-    const items = await Model.find({ [field]: regex }, { [field]: 1 }).lean();
     let maxNum = 0;
     for (const item of items) {
       const val = item[field] || '';
@@ -21,18 +28,21 @@ const getNextSequence = async (Model, field, prefix) => {
         }
       }
     }
+
     let nextNum = maxNum + 1;
     let code = `${prefix}-${String(nextNum).padStart(4, '0')}`;
-    while (await Model.findOne({ [field]: code })) {
+
+    while (await Model.findOne({ where: { [field]: code } })) {
       nextNum += 1;
       code = `${prefix}-${String(nextNum).padStart(4, '0')}`;
     }
+
     return code;
   } catch (error) {
-    const count = await Model.countDocuments();
+    const count = await Model.count();
     let nextNum = count + 1;
     let code = `${prefix}-${String(nextNum).padStart(4, '0')}`;
-    while (await Model.findOne({ [field]: code })) {
+    while (await Model.findOne({ where: { [field]: code } })) {
       nextNum += 1;
       code = `${prefix}-${String(nextNum).padStart(4, '0')}`;
     }
@@ -44,28 +54,26 @@ const getNextSequence = async (Model, field, prefix) => {
  * Generate next sequential product code: CON-0001, CON-0002, etc.
  */
 export const generateProductCode = async () => {
-  return await getNextSequence(Product, 'productCode', 'CON');
+  return await getNextSequence(Product, 'product_code', 'CON');
 };
 
 /**
  * Generate next sequential purchase number: PUR-0001, PUR-0002, etc.
  */
 export const generatePurchaseNumber = async () => {
-  // Support checking both purchaseId and purchaseNumber
-  return await getNextSequence(Purchase, 'purchaseId', 'PUR');
+  return await getNextSequence(Purchase, 'purchase_number', 'PUR');
 };
 
 /**
  * Generate next sequential transfer number: TRF-0001, TRF-0002, etc.
  */
 export const generateTransferNumber = async () => {
-  return await getNextSequence(Transfer, 'transferId', 'TRF');
+  return await getNextSequence(Transfer, 'transfer_number', 'TRF');
 };
 
 /**
  * Generate next sequential indent number: IND-0001, IND-0002, etc.
  */
 export const generateIndentNumber = async () => {
-  return await getNextSequence(Indent, 'indentNumber', 'IND');
+  return await getNextSequence(Indent, 'indent_number', 'IND');
 };
-

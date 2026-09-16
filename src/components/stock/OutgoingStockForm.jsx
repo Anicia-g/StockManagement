@@ -47,10 +47,36 @@ export const OutgoingStockForm = () => {
   }, []);
 
   const selectedProduct = products.find(
-    (p) => (p._id || p.id) === selectedProductId || p.productCode === selectedProductId
+    (p) =>
+      String(p._id || p.id) === String(selectedProductId) ||
+      p.productCode === selectedProductId ||
+      p.product_code === selectedProductId
   );
-  const availableStock = selectedProduct ? (selectedProduct.currentQuantity !== undefined ? selectedProduct.currentQuantity : selectedProduct.currentStock) : 0;
-  const minStock = selectedProduct ? (selectedProduct.minimumQuantity !== undefined ? selectedProduct.minimumQuantity : selectedProduct.minimumStockLevel || selectedProduct.minStock) : 0;
+  const availableStock = selectedProduct
+    ? Number(
+        selectedProduct.current_quantity !== undefined
+          ? selectedProduct.current_quantity
+          : (selectedProduct.currentQuantity !== undefined
+              ? selectedProduct.currentQuantity
+              : (selectedProduct.currentStock || 0))
+      )
+    : 0;
+  const productUnit = selectedProduct
+    ? (typeof selectedProduct.unit === 'string'
+        ? selectedProduct.unit
+        : (selectedProduct.unit?.name || selectedProduct.unitName || selectedProduct.unit_name || ''))
+    : '';
+  const minStock = selectedProduct
+    ? Number(
+        selectedProduct.minimum_quantity !== undefined
+          ? selectedProduct.minimum_quantity
+          : (selectedProduct.minimumQuantity !== undefined
+              ? selectedProduct.minimumQuantity
+              : (selectedProduct.minimum_stock_level !== undefined
+                  ? selectedProduct.minimum_stock_level
+                  : (selectedProduct.minimumStockLevel || selectedProduct.minStock || 0)))
+      )
+    : 0;
   const numQty = Number(quantity) || 0;
 
   const isOverLimit = numQty > availableStock;
@@ -70,7 +96,7 @@ export const OutgoingStockForm = () => {
     if (isOverLimit) {
       setFeedback({
         type: "error",
-        message: `Validation Error: Cannot issue ${numQty} units. Only ${availableStock} ${selectedProduct?.unit} available in stock.`
+        message: `Validation Error: Cannot issue ${numQty} ${productUnit || 'units'}. Only ${availableStock} ${productUnit} available in stock.`
       });
       return;
     }
@@ -89,9 +115,9 @@ export const OutgoingStockForm = () => {
         const prodName = res.product?.productName || res.product?.name || selectedProduct?.productName || selectedProduct?.name;
         const cur = res.currentQuantity !== undefined ? res.currentQuantity : remainingStock;
 
-        let msg = `Stock Issued Successfully: Issued ${res.issuedQuantity || numQty} units of ${prodName} to ${department}. Remaining stock: ${cur} ${selectedProduct?.unit}.`;
+        let msg = `Stock Issued Successfully: Issued ${res.issuedQuantity || numQty} units of ${prodName} to ${department}. Remaining stock: ${cur} ${productUnit}.`;
         if (res.isLowStock || cur < minStock) {
-          msg += ` ⚠ LOW STOCK: Item is now below its minimum stock level (${minStock} ${selectedProduct?.unit}).`;
+          msg += ` ⚠ LOW STOCK: Item is now below its minimum stock level (${minStock} ${productUnit}).`;
         }
 
         setFeedback({
@@ -102,7 +128,9 @@ export const OutgoingStockForm = () => {
         // Update local products stock
         setProducts((prevList) =>
           prevList.map((p) =>
-            (p._id || p.id) === selectedProductId ? { ...p, currentQuantity: cur, currentStock: cur } : p
+            String(p._id || p.id) === String(selectedProductId)
+              ? { ...p, currentQuantity: cur, current_quantity: cur, currentStock: cur }
+              : p
           )
         );
 

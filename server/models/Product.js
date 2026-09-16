@@ -1,161 +1,82 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const productSchema = new mongoose.Schema({
-  productCode: {
-    type: String,
-    required: [true, 'Product code is required'],
-    unique: true,
-    trim: true,
-    uppercase: true
+const Product = sequelize.define('Product', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
   },
-  productName: {
-    type: String,
-    required: [true, 'Product name is required'],
-    trim: true
+  product_code: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    unique: true
+  },
+  product_name: {
+    type: DataTypes.STRING(255),
+    allowNull: false
   },
   name: {
-    type: String,
-    trim: true
-  },
-  category: {
-    type: String,
-    required: [true, 'Category is required'],
-    default: 'Electrical'
-  },
-  categoryId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Category',
-    default: null
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   description: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    allowNull: true
   },
-  unit: {
-    type: String,
-    required: [true, 'Unit is required'],
-    default: 'Pieces'
+  category_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  unitId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Unit',
-    default: null
+  unit_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  currentQuantity: {
-    type: Number,
-    required: true,
-    default: 0,
-    min: [0, 'Quantity cannot be negative']
+  current_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0
   },
-  minimumQuantity: {
-    type: Number,
-    required: true,
-    default: 5,
-    min: [0, 'Minimum quantity cannot be negative']
+  minimum_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0
   },
-  minimumStockLevel: {
-    type: Number,
-    default: 5,
-    min: [0, 'Minimum stock level cannot be negative']
+  minimum_stock_level: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true
   },
-  stockRegister: {
-    type: String,
-    trim: true,
-    default: 'SR1'
+  stock_register_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  pageNumber: {
-    type: Number,
-    default: 1
+  page_number: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  registerRefs: [
-    {
-      sheet: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      page: {
-        type: Number,
-        required: true
-      },
-      note: {
-        type: String,
-        default: ''
-      }
-    }
-  ],
   active: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   },
   status: {
-    type: String,
-    enum: ['ACTIVE', 'INACTIVE'],
-    default: 'ACTIVE'
+    type: DataTypes.STRING(30),
+    allowNull: false,
+    defaultValue: 'ACTIVE'
   },
-  remarks: [
-    {
-      id: { type: String },
-      author: { type: String, required: true },
-      date: { type: String, required: true },
-      text: { type: String, required: true },
-      createdAt: { type: Date, default: Date.now }
-    }
-  ],
-  createdBy: {
-    type: String,
-    default: 'Admin'
+  created_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  updatedBy: {
-    type: String,
-    default: 'Admin'
+  updated_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'products',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-// Pre-save hook to synchronize name/productName and minimumQuantity/minimumStockLevel
-productSchema.pre('save', function (next) {
-  if (this.productName && !this.name) {
-    this.name = this.productName;
-  } else if (this.name && !this.productName) {
-    this.productName = this.name;
-  }
-
-  if (this.minimumQuantity !== undefined && this.minimumStockLevel === undefined) {
-    this.minimumStockLevel = this.minimumQuantity;
-  } else if (this.minimumStockLevel !== undefined && this.minimumQuantity === undefined) {
-    this.minimumQuantity = this.minimumStockLevel;
-  }
-
-  if (this.active !== undefined) {
-    this.status = this.active ? 'ACTIVE' : 'INACTIVE';
-  } else if (this.status !== undefined) {
-    this.active = this.status === 'ACTIVE';
-  }
-
-  next();
-});
-
-// Virtual for low stock status and derived status
-productSchema.virtual('stockStatus').get(function () {
-  const min = this.minimumQuantity !== undefined ? this.minimumQuantity : this.minimumStockLevel;
-  return this.currentQuantity <= min ? 'LOW_STOCK' : 'AVAILABLE';
-});
-
-productSchema.virtual('isLowStock').get(function () {
-  const min = this.minimumQuantity !== undefined ? this.minimumQuantity : this.minimumStockLevel;
-  return this.currentQuantity <= min;
-});
-
-productSchema.virtual('difference').get(function () {
-  const min = this.minimumQuantity !== undefined ? this.minimumQuantity : this.minimumStockLevel;
-  return this.currentQuantity - min;
-});
-
-// Ensure virtuals are serialized in JSON
-productSchema.set('toJSON', { virtuals: true });
-productSchema.set('toObject', { virtuals: true });
-
-const Product = mongoose.model('Product', productSchema);
 export default Product;

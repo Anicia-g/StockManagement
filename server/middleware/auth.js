@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import { User, Role, Department } from '../models/index.js';
 
 export const protect = async (req, res, next) => {
   try {
@@ -20,7 +20,13 @@ export const protect = async (req, res, next) => {
     const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_electrical_stock_secret_key_2026';
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await User.findByPk(decoded.id, {
+      include: [
+        { model: Role, as: 'role' },
+        { model: Department, as: 'department' }
+      ]
+    });
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -35,7 +41,20 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    req.user = user;
+    // Attach user object formatted for application consumption
+    req.user = {
+      id: user.id,
+      _id: user.id,
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      role_id: user.role_id,
+      role: user.role?.name || 'FACULTY',
+      department_id: user.department_id,
+      department: user.department?.name || 'Maintenance Dept.',
+      avatarText: user.avatar_text || 'U'
+    };
+
     next();
   } catch (error) {
     return res.status(401).json({
@@ -78,5 +97,4 @@ export const authorize = (...roles) => {
 export const requireAdmin = authorize('ADMIN');
 export const requireFaculty = authorize('FACULTY');
 export const requireFacultyOrAdmin = authorize('ADMIN', 'FACULTY');
-export const requireStaffOrAdmin = authorize('ADMIN', 'FACULTY'); // backward compatibility alias
-
+export const requireStaffOrAdmin = authorize('ADMIN', 'FACULTY');

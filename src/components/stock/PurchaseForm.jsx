@@ -61,8 +61,27 @@ export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = n
     }
   }, [preselectedProductCode, preselectedProductId, products]);
 
-  const selectedProduct = products.find((p) => p._id === selectedProductId);
-  const currentStock = selectedProduct ? selectedProduct.currentQuantity : 0;
+  const selectedProduct = products.find(
+    (p) =>
+      String(p._id) === String(selectedProductId) ||
+      String(p.id) === String(selectedProductId) ||
+      p.productCode === selectedProductId ||
+      p.product_code === selectedProductId
+  );
+  const currentStock = selectedProduct
+    ? Number(
+        selectedProduct.current_quantity !== undefined
+          ? selectedProduct.current_quantity
+          : (selectedProduct.currentQuantity !== undefined
+              ? selectedProduct.currentQuantity
+              : (selectedProduct.currentStock || 0))
+      )
+    : 0;
+  const productUnit = selectedProduct
+    ? (typeof selectedProduct.unit === 'string'
+        ? selectedProduct.unit
+        : (selectedProduct.unit?.name || selectedProduct.unitName || selectedProduct.unit_name || ''))
+    : '';
   const numQty = Number(quantity) || 0;
   const newCalculatedStock = currentStock + (numQty > 0 ? numQty : 0);
   const totalAmount = (Number(unitPrice) || 0) * numQty;
@@ -98,13 +117,21 @@ export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = n
 
         const newStockVal =
           res.data?.product?.currentQuantity ??
+          res.data?.product?.current_quantity ??
           res.product?.newQuantity ??
           res.updatedProduct?.currentQuantity ??
           (currentStock + numQty);
 
         setProducts((prev) =>
           prev.map((p) =>
-            p._id === selectedProductId ? { ...p, currentQuantity: newStockVal } : p
+            String(p._id) === String(selectedProductId) || String(p.id) === String(selectedProductId)
+              ? {
+                  ...p,
+                  currentQuantity: Number(newStockVal),
+                  current_quantity: Number(newStockVal),
+                  currentStock: Number(newStockVal)
+                }
+              : p
           )
         );
 
@@ -174,11 +201,27 @@ export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = n
                 }}
                 required
               >
-                {products.map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.name} ({p.productCode}) — Current: {p.currentQuantity} {p.unit} [{p.stockRegister || 'SR1'}]
-                  </option>
-                ))}
+                {products.map((p) => {
+                  const qty = Number(
+                    p.current_quantity !== undefined
+                      ? p.current_quantity
+                      : (p.currentQuantity !== undefined
+                          ? p.currentQuantity
+                          : (p.currentStock || 0))
+                  );
+                  const u = typeof p.unit === 'string'
+                    ? p.unit
+                    : (p.unit?.name || p.unitName || p.unit_name || '');
+                  const pId = p._id !== undefined ? p._id : p.id;
+                  const name = p.name || p.productName || p.product_name;
+                  const code = p.productCode || p.product_code;
+                  const reg = p.stockRegister || 'SR1';
+                  return (
+                    <option key={pId} value={pId}>
+                      {name} ({code}) — Current: {qty} {u} [{reg}]
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

@@ -1,10 +1,6 @@
-import Product from '../models/Product.js';
-import StockTransaction from '../models/StockTransaction.js';
-import Indent from '../models/Indent.js';
-import StockDocument from '../models/StockDocument.js';
-import Category from '../models/Category.js';
-import Purchase from '../models/Purchase.js';
-import Transfer from '../models/Transfer.js';
+import { Product, StockTransaction, Indent, IndentItem, Category, Purchase, Transfer, Department, User, StockDocument } from '../models/index.js';
+import { formatProduct, formatStockTransaction, formatIndent } from '../utils/formatters.js';
+import { Op } from 'sequelize';
 
 // @desc    Get dashboard summary metrics and statistics
 // @route   GET /api/dashboard & GET /api/analytics/dashboard
@@ -12,7 +8,7 @@ export const getDashboardStats = async (req, res, next) => {
   try {
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Core entity counts directly from MongoDB
+    // Core entity counts directly from MySQL
     const [
       totalProducts,
       totalCategories,
@@ -20,96 +16,54 @@ export const getDashboardStats = async (req, res, next) => {
       totalTransfers,
       pendingIndentCount
     ] = await Promise.all([
-      Product.countDocuments({ active: { $ne: false } }),
-      Category.countDocuments({ active: { $ne: false } }),
-      Purchase.countDocuments(),
-      Transfer.countDocuments(),
-      Indent.countDocuments({ status: { $in: ['SUBMITTED', 'PENDING', 'RECOMMENDED'] } })
+      Product.count({ where: { active: true } }),
+      Category.count({ where: { active: true } }),
+      Purchase.count(),
+      Transfer.count(),
+      Indent.count({ where: { status: { [Op.in]: ['SUBMITTED', 'PENDING', 'UNDER_REVIEW', 'RECOMMENDED'] } } })
     ]);
 
-    const products = await Product.find({ active: { $ne: false } });
-    const totalCurrentStock = products.reduce((sum, p) => sum + (Number(p.currentQuantity) || 0), 0);
+    const products = await Product.findAll({
+      where: { active: true },
+      include: ['category', 'unit', 'stockDocument', 'documentReferences']
+    });
 
-    const lowStockProducts = products
-      .filter(p => {
-        const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
-        return (Number(p.currentQuantity) || 0) <= min;
-      })
-      .map(p => {
-        const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
-        return {
-          id: p._id,
-          _id: p._id,
-          productCode: p.productCode,
-          productName: p.productName || p.name,
-          name: p.productName || p.name,
-          category: p.category,
-          unit: p.unit,
-          currentQuantity: p.currentQuantity,
-          currentStock: p.currentQuantity,
-          minimumQuantity: min,
-          minStock: min,
-          difference: p.currentQuantity - min,
-          status: 'LOW_STOCK',
-          stockStatus: 'LOW_STOCK',
-          stockRegister: p.stockRegister || 'SR1',
-          pageNumber: p.pageNumber || 1,
-          registerRefs: p.registerRefs
-        };
-      });
+    const formattedProducts = products.map(formatProduct);
+    const totalCurrentStock = formattedProducts.reduce((sum, p) => sum + (Number(p.currentQuantity) || 0), 0);
 
+    const lowStockProducts = formattedProducts.filter(p => p.isLowStock);
     const lowStockCount = lowStockProducts.length;
 
     // Today's movement quantities
-    const todayPurchases = await Purchase.find({ date: todayStr });
-    const todayPurchased = todayPurchases.reduce((sum, p) => sum + (p.quantity || 0), 0);
+    const todayPurchases = await Purchase.findAll({ where: { purchase_date: todayStr } });
+    const todayPurchased = todayPurchases.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
 
-    const todayTransfersList = await Transfer.find({ date: todayStr });
-    const todayTransferred = todayTransfersList.reduce((sum, t) => sum + (t.quantity || 0), 0);
+    const todayTransfersList = await Transfer.findAll({ where: { transfer_date: todayStr } });
+    const todayTransferred = todayTransfersList.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
 
     // Recent transactions (latest 10)
-    const recentTransactionsRaw = await StockTransaction.find().sort({ createdAt: -1, date: -1 }).limit(10);
-    const recentTransactions = recentTransactionsRaw.map(t => {
-      const isPurchase = t.transactionType === 'PURCHASE' || t.transactionType === 'IN';
-      return {
-        id: t._id,
-        _id: t._id,
-        transactionId: t.transactionId,
-        date: t.date,
-        productId: t.productId,
-        productCode: t.productCode,
-        productName: t.productName,
-        stockRegister: t.stockRegister || 'SR1',
-        type: isPurchase ? 'PURCHASE' : 'TRANSFER',
-        transactionType: isPurchase ? 'PURCHASE' : 'TRANSFER',
-        typeLabel: isPurchase ? 'Purchase' : 'Transfer',
-        quantity: Math.abs(t.quantity || 0),
-        previousQuantity: t.previousQuantity,
-        newQuantity: t.newQuantity,
-        department: t.department || 'Store',
-        remarks: t.remarks || '',
-        recordedBy: t.recordedBy || 'Admin',
-        performedBy: t.recordedBy || 'Admin'
-      };
+    const recentTransactionsRaw = await StockTransaction.findAll({
+      include: [
+        { model: Product, as: 'product' },
+        { model: Department, as: 'department' },
+        { model: User, as: 'recorder' }
+      ],
+      order: [['transaction_date', 'DESC'], ['id', 'DESC']],
+      limit: 10
     });
+    const recentTransactions = recentTransactionsRaw.map(formatStockTransaction);
 
     // Faculty role-specific metrics
     let facultyStats = null;
-    let indentQuery = {};
+    let indentWhere = {};
     if (req.user && req.user.role === 'FACULTY') {
-      indentQuery = {
-        $or: [
-          { requesterId: req.user._id },
-          { department: req.user.department },
-          { requestingDepartment: req.user.department }
-        ]
-      };
+      indentWhere = { requested_by: req.user.id };
 
       const [myTotalRequests, myPendingRequests, myApprovedRequests, myRejectedRequests] = await Promise.all([
-        Indent.countDocuments(indentQuery),
-        Indent.countDocuments({ ...indentQuery, status: { $in: ['SUBMITTED', 'PENDING', 'RECOMMENDED'] } }),
-        Indent.countDocuments({ ...indentQuery, status: { $in: ['APPROVED', 'ISSUED', 'PARTIALLY_ISSUED', 'COMPLETED'] } }),
-        Indent.countDocuments({ ...indentQuery, status: 'REJECTED' })
+        Indent.count({ where: indentWhere }),
+        Indent.count({ where: { ...indentWhere, status: { [Op.in]: ['SUBMITTED', 'PENDING', 'UNDER_REVIEW', 'RECOMMENDED'] } } }),
+        Indent.count({ where: { ...indentWhere, status: { [Op.in]: ['APPROVED', 'COMPLETED', 'ISSUED'] } } }),
+        Indent.count({ where: { ...indentWhere, status: 'REJECTED' } })
       ]);
 
       facultyStats = {
@@ -121,7 +75,17 @@ export const getDashboardStats = async (req, res, next) => {
       };
     }
 
-    const recentIndents = await Indent.find(indentQuery).sort({ createdAt: -1 }).limit(5);
+    const recentIndentsRaw = await Indent.findAll({
+      where: indentWhere,
+      include: [
+        { model: Department, as: 'department' },
+        { model: User, as: 'requester' },
+        { model: IndentItem, as: 'items', include: ['product'] }
+      ],
+      order: [['id', 'DESC']],
+      limit: 5
+    }).catch(() => []);
+    const recentIndents = recentIndentsRaw.map(formatIndent);
 
     res.json({
       success: true,
@@ -152,20 +116,7 @@ export const getDashboardStats = async (req, res, next) => {
         pendingIndents: pendingIndentCount,
         pendingIndentCount,
         todayPurchased,
-        todayTransferred,
-        ...(facultyStats || {})
-      },
-      data: {
-        totalProducts,
-        totalCategories,
-        totalCurrentStock,
-        lowStockCount,
-        totalPurchases,
-        totalTransfers,
-        pendingIndentCount,
-        recentTransactions,
-        lowStockProducts,
-        facultyStats
+        todayTransferred
       }
     });
   } catch (error) {
@@ -173,187 +124,84 @@ export const getDashboardStats = async (req, res, next) => {
   }
 };
 
-// @desc    Get comprehensive analytics data for Analytics page
+// @desc    Get detailed analytics overview
 // @route   GET /api/analytics/overview
 export const getAnalyticsOverview = async (req, res, next) => {
   try {
-    const products = await Product.find({ active: { $ne: false } });
-    const totalProducts = products.length;
-    const totalCurrentStock = products.reduce((sum, p) => sum + (Number(p.currentQuantity) || 0), 0);
-
-    const lowStockProducts = products
-      .filter(p => {
-        const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
-        return (Number(p.currentQuantity) || 0) <= min;
-      })
-      .map(p => {
-        const min = p.minimumQuantity !== undefined ? p.minimumQuantity : p.minimumStockLevel;
-        return {
-          productCode: p.productCode,
-          productName: p.productName || p.name,
-          currentQuantity: p.currentQuantity,
-          minimumQuantity: min,
-          unit: p.unit,
-          deficit: Math.max(0, min - p.currentQuantity)
-        };
-      });
-
-    const lowStockCount = lowStockProducts.length;
-
-    // Categories & category distribution
-    const categories = await Category.find({ active: { $ne: false } });
-    const totalCategories = categories.length;
-
-    const categoryDistribution = categories.map(cat => {
-      const prodsInCat = products.filter(p => p.category === cat.name);
-      return {
-        name: cat.name,
-        productCount: prodsInCat.length,
-        stock: prodsInCat.reduce((sum, p) => sum + (Number(p.currentQuantity) || 0), 0)
-      };
-    }).filter(c => c.productCount > 0 || c.stock > 0);
-
-    // If categories collection is not mapped to product names, aggregate from products
-    if (categoryDistribution.length === 0) {
-      const catMap = {};
-      products.forEach(p => {
-        const cat = p.category || 'General';
-        if (!catMap[cat]) catMap[cat] = { name: cat, productCount: 0, stock: 0 };
-        catMap[cat].productCount += 1;
-        catMap[cat].stock += Number(p.currentQuantity) || 0;
-      });
-      Object.values(catMap).forEach(item => categoryDistribution.push(item));
-    }
-
-    // Purchase and Transfer record counts
-    const [totalPurchases, totalTransfers] = await Promise.all([
-      Purchase.countDocuments(),
-      Transfer.countDocuments()
-    ]);
-
-    // Aggregate purchase & transfer quantities
-    const purchasesList = await Purchase.find().lean();
-    const transfersList = await Transfer.find().lean();
-
-    const totalPurchasedQuantity = purchasesList.reduce((sum, p) => sum + (p.quantity || 0), 0);
-    const totalTransferredQuantity = transfersList.reduce((sum, t) => sum + (t.quantity || 0), 0);
-
-    // 14-day trend for purchases vs transfers
-    const trends = [];
-    const trendMap = {};
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const entry = {
-        date: dateStr,
-        purchases: 0,
-        transfers: 0
-      };
-      trends.push(entry);
-      trendMap[dateStr] = entry;
-    }
-
-    purchasesList.forEach(p => {
-      const dateStr = (p.date || '').substring(0, 10);
-      if (trendMap[dateStr]) {
-        trendMap[dateStr].purchases += p.quantity || 0;
-      }
+    const products = await Product.findAll({
+      where: { active: true },
+      include: ['category', 'unit']
     });
 
-    transfersList.forEach(t => {
-      const dateStr = (t.date || '').substring(0, 10);
-      if (trendMap[dateStr]) {
-        trendMap[dateStr].transfers += t.quantity || 0;
-      }
+    const purchases = await Purchase.findAll({
+      include: ['product'],
+      order: [['purchase_date', 'ASC']]
     });
 
-    // Department-wise transfer consumption
-    const deptMap = {};
-    transfersList.forEach(t => {
-      const dept = t.department || 'General Maintenance';
-      deptMap[dept] = (deptMap[dept] || 0) + (t.quantity || 0);
+    const transfers = await Transfer.findAll({
+      include: ['product', 'department'],
+      order: [['transfer_date', 'ASC']]
     });
-    const departmentConsumption = Object.keys(deptMap).map(dept => ({
-      department: dept,
-      quantity: deptMap[dept]
+
+    const indents = await Indent.findAll({
+      include: ['department']
+    });
+
+    // Category Distribution
+    const categoryMap = {};
+    products.forEach(p => {
+      const cat = p.category?.name || 'Uncategorized';
+      categoryMap[cat] = (categoryMap[cat] || 0) + Number(p.current_quantity || 0);
+    });
+
+    const categoryDistribution = Object.keys(categoryMap).map(name => ({
+      name,
+      value: categoryMap[name],
+      stock: categoryMap[name]
     }));
 
-    // Indents statistics
-    const [totalIndents, pendingIndents, approvedIndents, rejectedIndents] = await Promise.all([
-      Indent.countDocuments(),
-      Indent.countDocuments({ status: { $in: ['SUBMITTED', 'PENDING', 'RECOMMENDED'] } }),
-      Indent.countDocuments({ status: { $in: ['APPROVED', 'PARTIALLY_APPROVED', 'COMPLETED', 'ISSUED'] } }),
-      Indent.countDocuments({ status: 'REJECTED' })
-    ]);
+    // Department transfers distribution
+    const deptTransferMap = {};
+    transfers.forEach(t => {
+      const dept = t.department?.name || 'General';
+      deptTransferMap[dept] = (deptTransferMap[dept] || 0) + Number(t.quantity || 0);
+    });
 
-    const indentDistribution = [
-      { name: 'Submitted / Pending', value: pendingIndents, color: '#f59e0b' },
-      { name: 'Approved', value: approvedIndents, color: '#10b981' },
-      { name: 'Rejected', value: rejectedIndents, color: '#ef4444' }
-    ].filter(item => item.value > 0);
+    const departmentUsage = Object.keys(deptTransferMap).map(dept => ({
+      department: dept,
+      name: dept,
+      quantity: deptTransferMap[dept],
+      count: deptTransferMap[dept]
+    }));
+
+    // Monthly movements trend
+    const movementMonths = {};
+    purchases.forEach(p => {
+      const month = p.purchase_date ? p.purchase_date.substring(0, 7) : '2026-09';
+      if (!movementMonths[month]) movementMonths[month] = { month, purchases: 0, transfers: 0 };
+      movementMonths[month].purchases += Number(p.quantity || 0);
+    });
+    transfers.forEach(t => {
+      const month = t.transfer_date ? t.transfer_date.substring(0, 7) : '2026-09';
+      if (!movementMonths[month]) movementMonths[month] = { month, purchases: 0, transfers: 0 };
+      movementMonths[month].transfers += Number(t.quantity || 0);
+    });
+
+    const monthlyTrends = Object.values(movementMonths).sort((a, b) => a.month.localeCompare(b.month));
 
     res.json({
       success: true,
-      metrics: {
-        totalProducts,
-        totalCategories,
-        totalCurrentStock,
-        lowStockCount,
-        totalPurchases,
-        totalTransfers,
-        totalPurchasedQuantity,
-        totalTransferredQuantity,
-        totalIndents,
-        pendingIndents,
-        approvedIndents,
-        rejectedIndents
-      },
-      inventory: {
-        totalProducts,
-        totalCurrentStock,
-        totalStock: totalCurrentStock,
-        lowStockCount,
-        criticalStockCount: lowStockProducts.filter(p => p.currentQuantity === 0).length,
-        categoryDistribution
-      },
-      purchases: {
-        totalPurchases,
-        totalQuantity: totalPurchasedQuantity
-      },
-      transfers: {
-        totalTransfers,
-        totalQuantity: totalTransferredQuantity,
-        departmentConsumption
-      },
-      indents: {
-        total: totalIndents,
-        pending: pendingIndents,
-        approved: approvedIndents,
-        rejected: rejectedIndents,
-        distribution: indentDistribution
-      },
-      trends,
+      totalProducts: products.length,
+      totalPurchases: purchases.length,
+      totalTransfers: transfers.length,
+      totalIndents: indents.length,
       categoryDistribution,
-      lowStockProducts,
-      departmentConsumption,
+      departmentUsage,
+      monthlyTrends,
       data: {
-        metrics: {
-          totalProducts,
-          totalCategories,
-          totalCurrentStock,
-          lowStockCount,
-          totalPurchases,
-          totalTransfers,
-          totalIndents,
-          pendingIndents,
-          approvedIndents,
-          rejectedIndents
-        },
-        trends,
         categoryDistribution,
-        lowStockProducts,
-        indentDistribution
+        departmentUsage,
+        monthlyTrends
       }
     });
   } catch (error) {

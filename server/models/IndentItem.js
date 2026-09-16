@@ -1,39 +1,43 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/mysql.js';
 
-const Indent = sequelize.define('Indent', {
+const IndentItem = sequelize.define('IndentItem', {
   id: {
     type: DataTypes.INTEGER.UNSIGNED,
     autoIncrement: true,
     primaryKey: true
   },
-  indent_number: {
-    type: DataTypes.STRING(50),
-    allowNull: false,
-    unique: true
-  },
-  department_id: {
+  indent_id: {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: false
   },
-  requested_by: {
+  product_id: {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: false
   },
-  status: {
-    type: DataTypes.STRING(30),
+  requested_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false
+  },
+  approved_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
-    defaultValue: 'SUBMITTED'
+    defaultValue: 0
+  },
+  issued_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0
   },
   remarks: {
     type: DataTypes.TEXT,
     allowNull: true
   }
 }, {
-  tableName: 'indents',
+  tableName: 'indent_items',
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at'
 });
 
-export default Indent;
+export default IndentItem;

@@ -1,88 +1,67 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/mysql.js';
 
-const stockTransactionSchema = new mongoose.Schema({
-  transactionId: {
-    type: String,
-    required: true,
+const StockTransaction = sequelize.define('StockTransaction', {
+  id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  transaction_code: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
     unique: true
   },
-  transactionType: {
-    type: String,
-    enum: ['IN', 'OUT', 'PURCHASE', 'TRANSFER'],
-    required: true
+  product_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: false
   },
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
-  },
-  productCode: {
-    type: String,
-    required: true
-  },
-  productName: {
-    type: String,
-    required: true
-  },
-  stockRegister: {
-    type: String,
-    trim: true,
-    default: 'SR1'
+  transaction_type: {
+    type: DataTypes.STRING(30),
+    allowNull: false
   },
   quantity: {
-    type: Number,
-    required: true,
-    min: 1
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false
   },
-  previousQuantity: {
-    type: Number,
-    required: true,
-    min: 0
+  previous_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false
   },
-  newQuantity: {
-    type: Number,
-    required: true,
-    min: 0
+  new_quantity: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false
   },
-  departmentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Department',
-    default: null
+  department_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  department: {
-    type: String,
-    default: 'Store'
+  reference_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   },
-  indentDetailId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'IndentDetail',
-    default: null
-  },
-  referenceId: {
-    type: String,
-    default: null
-  },
-  date: {
-    type: String,
-    required: true
+  reference_type: {
+    type: DataTypes.STRING(50),
+    allowNull: true
   },
   remarks: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    allowNull: true
   },
-  recordedBy: {
-    type: String,
-    required: true,
-    default: 'Staff'
+  transaction_date: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
   },
-  recordedByUserId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
+  recorded_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'stock_transactions',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-const StockTransaction = mongoose.model('StockTransaction', stockTransactionSchema);
 export default StockTransaction;
