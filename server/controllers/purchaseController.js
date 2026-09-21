@@ -147,22 +147,34 @@ export const recordPurchase = async (req, res, next) => {
       const purchaseDate = date || new Date().toISOString().split('T')[0];
 
       // 3. Create purchases record
+      const trimmedSupplier = supplier && typeof supplier === 'string' && supplier.trim() ? supplier.trim() : null;
+      const trimmedInvoice = invoiceNumber && typeof invoiceNumber === 'string' && invoiceNumber.trim() ? invoiceNumber.trim() : null;
+      const trimmedRemarks = remarks && typeof remarks === 'string' && remarks.trim() ? remarks.trim() : '';
+
       const purchase = await Purchase.create({
         purchase_number: purchaseNumber,
         product_id: product.id,
         quantity: qty,
         unit_price: numUnitPrice,
         total_amount: totalAmount,
-        supplier: supplier || 'Standard Electricals',
-        invoice_number: invoiceNumber || '',
+        supplier: trimmedSupplier,
+        invoice_number: trimmedInvoice || '',
         purchase_date: purchaseDate,
         stock_register_id: registerId,
         page_number: Number(pageNumber) || product.page_number || 1,
-        remarks: remarks || '',
+        remarks: trimmedRemarks,
         recorded_by: req.user?.id || 1
       }, { transaction: t });
 
       // 4. Create stock_transactions record
+      const remarkSegments = [];
+      if (trimmedSupplier) remarkSegments.push(`Supplier: ${trimmedSupplier}`);
+      if (trimmedInvoice) remarkSegments.push(`Invoice: ${trimmedInvoice}`);
+      if (trimmedRemarks) remarkSegments.push(trimmedRemarks);
+      const purchaseTxnRemarks = remarkSegments.length > 0
+        ? `Purchase (${remarkSegments.join(' - ')})`
+        : 'Stock Purchase';
+
       await StockTransaction.create({
         transaction_code: `TXN-${purchaseNumber}`,
         product_id: product.id,
@@ -173,7 +185,7 @@ export const recordPurchase = async (req, res, next) => {
         department_id: 7, // Central Store
         reference_id: purchase.id,
         reference_type: 'PURCHASE',
-        remarks: `Purchase (${supplier || 'Supplier'}) - Invoice: ${invoiceNumber || 'N/A'}. ${remarks || ''}`,
+        remarks: purchaseTxnRemarks,
         transaction_date: new Date(purchaseDate),
         recorded_by: req.user?.id || 1
       }, { transaction: t });

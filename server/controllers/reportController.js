@@ -92,7 +92,7 @@ export const getReportData = async (req, res, next) => {
           productName: p.product?.product_name || '',
           stockRegister: p.stockDocument?.document_code || 'SR1',
           quantity: `${p.quantity} ${p.product?.unit?.name || 'Pieces'}`,
-          supplier: p.supplier || 'Standard Supplier',
+          supplier: p.supplier || '',
           invoiceNumber: p.invoice_number || '—',
           recordedBy: p.recorder?.name || 'Admin'
         }));

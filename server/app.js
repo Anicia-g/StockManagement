@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
+import facultyRoutes from './routes/facultyRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import stockRoutes from './routes/stockRoutes.js';
 import indentRoutes from './routes/indentRoutes.js';
@@ -32,6 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Core API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/faculty', facultyRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/departments', departmentRouter);

@@ -23,6 +23,7 @@ import Units from '../pages/Units';
 import StockRegisters from '../pages/StockRegisters';
 import ManageIndents from '../pages/ManageIndents';
 import Notifications from '../pages/Notifications';
+import Faculty from '../pages/Faculty';
 
 export const AppRoutes = () => {
   return (
@@ -152,6 +153,18 @@ export const AppRoutes = () => {
       <Route
         path="/stock-registers"
         element={<Navigate to="/stock-documents" replace />}
+      />
+      <Route
+        path="/faculty"
+        element={
+          <RoleRoute requireAdmin={true}>
+            <Faculty />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/admin/faculty"
+        element={<Navigate to="/faculty" replace />}
       />
       <Route
         path="/manage-indents"

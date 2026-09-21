@@ -90,18 +90,25 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedProductId || numQty <= 0) {
+    if (!selectedProductId) {
       setFeedback({
         type: 'error',
-        message: 'Please select a product and enter a valid transfer quantity.'
+        message: 'Please select a product.'
+      });
+      return;
+    }
+    if (numQty <= 0) {
+      setFeedback({
+        type: 'error',
+        message: 'Enter a valid transfer quantity.'
       });
       return;
     }
 
-    if (isOverLimit) {
+    if (isOverLimit || numQty > availableStock) {
       setFeedback({
         type: 'error',
-        message: `Validation Error: Cannot transfer ${numQty} ${productUnit || 'units'}. Only ${availableStock} ${productUnit} available in store stock.`
+        message: 'Transfer quantity cannot exceed available stock.'
       });
       return;
     }
@@ -183,11 +190,6 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
     <div className="card form-card">
       <div className="card-head">
         <h2>Issue Department Stock Transfer</h2>
-        {selectedProduct && (
-          <span className="badge badge-blue">
-            Register: {selectedProduct.stockRegister || 'SR1'} (p.{selectedProduct.pageNumber || 1})
-          </span>
-        )}
       </div>
       <div className="card-pad">
         {feedback && (
@@ -316,9 +318,30 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
             </div>
           </div>
 
+          <div className="info-strip">
+            <div className="item">
+              <div className="k">Current Stock</div>
+              <div className="v">
+                {selectedProduct ? `${availableStock} ${productUnit}`.trim() : '—'}
+              </div>
+            </div>
+            <div className="item">
+              <div className="k">Transfer Quantity</div>
+              <div className="v" style={{ color: numQty > 0 ? 'var(--amber-700)' : 'inherit' }}>
+                {numQty > 0 ? `-${numQty} ${productUnit}`.trim() : `0 ${productUnit}`.trim()}
+              </div>
+            </div>
+            <div className="item">
+              <div className="k">Remaining Stock</div>
+              <div className="v" style={{ color: isOverLimit ? 'var(--red-600)' : (remainingStock <= minStock ? 'var(--amber-600)' : 'var(--green-600)') }}>
+                {isOverLimit ? `0 ${productUnit}`.trim() : `${Math.max(0, remainingStock)} ${productUnit}`.trim()}
+              </div>
+            </div>
+          </div>
+
           {isOverLimit && (
             <div className="alert-box">
-              ⚠ Cannot transfer: The requested quantity ({numQty} {productUnit}) exceeds available store stock ({availableStock} {productUnit}).
+              ⚠ Transfer quantity cannot exceed available stock.
             </div>
           )}
 
@@ -332,7 +355,7 @@ export const TransferForm = ({ onTransferCompleted = null, onTransferSuccess = n
             <Button
               variant="primary"
               type="submit"
-              disabled={isOverLimit || availableStock === 0 || loading}
+              disabled={isOverLimit || availableStock === 0 || loading || numQty <= 0}
             >
               {loading ? 'Issuing Transfer...' : 'Issue Stock Transfer'}
             </Button>

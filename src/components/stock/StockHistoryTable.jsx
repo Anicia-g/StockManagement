@@ -1,94 +1,122 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import StatusBadge from '../common/StatusBadge';
-import EmptyState from '../common/EmptyState';
 
 export const StockHistoryTable = ({ transactions = [] }) => {
   if (transactions.length === 0) {
     return (
-      <EmptyState
-        icon="≣"
-        title="No stock movements found"
-        description="No purchase or transfer transactions match your filter criteria."
-      />
+      <div style={{ padding: '48px 24px', textAlign: 'center', color: '#64748b' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📋</div>
+        <div style={{ fontSize: '1rem', fontWeight: 600, color: '#0f172a', marginBottom: '4px' }}>
+          No transactions found.
+        </div>
+        <p style={{ fontSize: '0.84rem', margin: 0 }}>
+          No recorded purchase or departmental transfer transactions match your filter criteria.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="table-wrap">
-      <table>
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
         <thead>
-          <tr>
-            <th>Txn ID</th>
-            <th>Date</th>
-            <th>Product Code</th>
-            <th>Product Name</th>
-            <th>Stock Register</th>
-            <th>Type</th>
-            <th>Quantity</th>
-            <th>Prev Stock</th>
-            <th>New Stock</th>
-            <th>Department / Source</th>
-            <th>Reference ID</th>
-            <th>Performed By</th>
-            <th>Remarks</th>
+          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+            <th style={{ padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>Date & Time</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>Transaction ID</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600 }}>Product</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'center' }}>Transaction Type</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right' }}>Quantity</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'center' }}>Previous Stock</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'center' }}>New Stock</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600 }}>Department</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600 }}>Performed By</th>
+            <th style={{ padding: '12px 16px', fontWeight: 600 }}>Reference</th>
           </tr>
         </thead>
         <tbody>
-          {transactions.map((txn) => {
+          {transactions.map((txn, idx) => {
             const rawType = (txn.type || txn.transactionType || '').toUpperCase();
             const isPurchase = rawType === 'PURCHASE' || rawType === 'IN';
-            const typeLabel = isPurchase ? 'Purchase' : 'Transfer';
-            const qty = Math.abs(txn.quantity);
+            const qty = Math.abs(Number(txn.quantity || 0));
+
+            // Format date readable e.g. "17 Sep 2026"
+            let dateDisplay = txn.date || '';
+            if (txn.transactionDate) {
+              const d = new Date(txn.transactionDate);
+              if (!isNaN(d.getTime())) {
+                dateDisplay = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+              }
+            }
 
             return (
-              <tr key={txn._id || txn.transactionId}>
-                <td className="code" style={{ whiteSpace: 'nowrap' }}>
-                  {txn.transactionId}
+              <tr
+                key={txn._id || txn.transactionId || idx}
+                style={{
+                  borderBottom: '1px solid #f1f5f9',
+                  transition: 'background-color 0.15s ease'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <td style={{ padding: '12px 16px', whiteSpace: 'nowrap', color: '#475569' }}>
+                  {dateDisplay}
                 </td>
-                <td style={{ whiteSpace: 'nowrap' }}>{txn.date}</td>
-                <td className="code">{txn.productCode}</td>
-                <td>
-                  <Link
-                    to={`/products/${txn.productId || txn.productCode}`}
-                    className="cell-strong"
-                  >
-                    {txn.productName}
-                  </Link>
+                <td style={{ padding: '12px 16px', whiteSpace: 'nowrap', fontFamily: 'monospace', fontWeight: 600, color: '#1e293b' }}>
+                  {txn.transactionId || txn.transactionCode}
                 </td>
-                <td>
-                  <span className="badge badge-blue">{txn.stockRegister || 'SR1'}</span>
+                <td style={{ padding: '12px 16px', minWidth: '180px' }}>
+                  <div>
+                    <Link
+                      to={`/products/${txn.productId || txn.productCode}`}
+                      style={{ fontWeight: 600, color: '#0f172a', textDecoration: 'none' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#2563eb')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = '#0f172a')}
+                    >
+                      {txn.productName}
+                    </Link>
+                  </div>
+                  {txn.productCode && (
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', fontFamily: 'monospace', marginTop: '1px' }}>
+                      {txn.productCode}
+                    </div>
+                  )}
                 </td>
-                <td>
+                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                   <span
                     style={{
                       display: 'inline-block',
-                      padding: '3px 8px',
+                      padding: '3px 9px',
                       borderRadius: '4px',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      background: isPurchase ? '#ecfdf5' : '#eff6ff',
-                      color: isPurchase ? '#047857' : '#1d4ed8',
-                      border: isPurchase ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.4px',
+                      background: isPurchase ? '#ecfdf5' : '#fff7ed',
+                      color: isPurchase ? '#059669' : '#d97706',
+                      border: `1px solid ${isPurchase ? '#a7f3d0' : '#fed7aa'}`
                     }}
                   >
-                    {typeLabel}
+                    {isPurchase ? 'PURCHASE' : 'TRANSFER'}
                   </span>
                 </td>
-                <td>
-                  <strong style={{ color: isPurchase ? 'var(--green-600)' : 'var(--blue-600)' }}>
+                <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem', color: isPurchase ? '#059669' : '#d97706' }}>
                     {isPurchase ? `+${qty}` : `-${qty}`}
-                  </strong>
+                  </span>
                 </td>
-                <td>{txn.previousQuantity !== undefined ? txn.previousQuantity : '—'}</td>
-                <td>
-                  <strong>{txn.newQuantity !== undefined ? txn.newQuantity : '—'}</strong>
+                <td style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b' }}>
+                  {txn.previousQuantity !== undefined ? txn.previousQuantity : '—'}
                 </td>
-                <td>{txn.department || 'Store'}</td>
-                <td className="code">{txn.referenceId || '—'}</td>
-                <td>{txn.performedBy || 'Admin'}</td>
-                <td className="small" style={{ maxWidth: '240px' }}>
-                  {txn.remarks || '—'}
+                <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, color: '#0f172a' }}>
+                  {txn.newQuantity !== undefined ? txn.newQuantity : '—'}
+                </td>
+                <td style={{ padding: '12px 16px', color: '#334155' }}>
+                  {txn.department || 'Central Store'}
+                </td>
+                <td style={{ padding: '12px 16px', color: '#475569' }}>
+                  {txn.performedBy || txn.recordedBy || 'Admin'}
+                </td>
+                <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
+                  {txn.reference || txn.referenceId || '—'}
                 </td>
               </tr>
             );

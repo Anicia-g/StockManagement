@@ -44,8 +44,8 @@ export const Transfer = () => {
       if (departmentFilter) params.department = departmentFilter;
 
       const res = await transferApi.getTransfers(params);
-      if (res.success) {
-        setTransfers(res.transfers || []);
+      if (res && res.success) {
+        setTransfers(res.transfers || res.data || []);
         setTotalItems(res.total !== undefined ? res.total : (res.count || res.transfers?.length || 0));
       }
     } catch (err) {
@@ -110,75 +110,99 @@ export const Transfer = () => {
           </div>
         )}
 
-        <div className="grid-2col" style={{ alignItems: 'start', marginBottom: '32px' }}>
-          {/* Transfer Form */}
-          <div>
-            <TransferForm onTransferSuccess={handleTransferSuccess} />
+        {/* 1. TRANSFER FORM */}
+        <div style={{ marginBottom: '24px' }}>
+          <TransferForm onTransferSuccess={handleTransferSuccess} />
+        </div>
+
+        {/* 2. TRANSFER STATISTICS */}
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-head">
+            <span className="card-title">Transfer Statistics</span>
           </div>
-
-          {/* Quick Metrics & Rules */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div className="card">
-              <div className="card-head">
-                <span className="card-title">Transfer Statistics</span>
-              </div>
-              <div className="card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div
-                    style={{
-                      background: 'var(--navy-50)',
-                      padding: '16px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--navy-100)'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                      Total Issues Logged
-                    </div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--navy-900)', marginTop: '4px' }}>
-                      {totalItems}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      background: 'var(--amber-50)',
-                      padding: '16px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--amber-100)'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                      Units on Page
-                    </div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--amber-800)', marginTop: '4px' }}>
-                      {totalUnitsTransferred}
-                    </div>
-                  </div>
+          <div className="card-body">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '16px'
+              }}
+            >
+              <div
+                style={{
+                  background: 'var(--navy-50)',
+                  padding: '16px 20px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--navy-100)'
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  Total Issues Logged
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.6rem',
+                    fontWeight: 800,
+                    color: 'var(--navy-900)',
+                    marginTop: '4px'
+                  }}
+                >
+                  {totalItems}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Recorded stock transfers
                 </div>
               </div>
-            </div>
 
-            <div className="card">
-              <div className="card-head">
-                <span className="card-title">Stock Transfer Policy</span>
-              </div>
-              <div className="card-body" style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                <ul style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <li>Transferring stock immediately decreases current store inventory.</li>
-                  <li>Cannot transfer more quantity than currently available in store.</li>
-                  <li>Department requisitions should be reviewed and approved via the <strong>Manage Indents</strong> page.</li>
-                  <li>All transferred items are recorded in <strong>Stock History</strong> with receiving department tags.</li>
-                </ul>
+              <div
+                style={{
+                  background: 'var(--amber-50)',
+                  padding: '16px 20px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--amber-100)'
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  Units on Page
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.6rem',
+                    fontWeight: 800,
+                    color: 'var(--amber-800)',
+                    marginTop: '4px'
+                  }}
+                >
+                  {totalUnitsTransferred}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Total units transferred
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Transfer History Table */}
-        <div className="card">
+        {/* 3. RECENT STOCK TRANSFERS */}
+        <div className="card" style={{ marginBottom: '24px' }}>
           <div className="card-head" style={{ flexWrap: 'wrap', gap: '12px' }}>
-            <span className="card-title">Recent Transfer Logs</span>
+            <span className="card-title">Recent Stock Transfers</span>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <input
                 type="text"
@@ -204,8 +228,8 @@ export const Transfer = () => {
                 }}
               >
                 <option value="">All Departments</option>
-                {departments.map((d) => (
-                  <option key={d._id || d.name || d} value={d.name || d}>
+                {departments.map((d, idx) => (
+                  <option key={d._id || d.id || d.code || `dept-${idx}`} value={d.name || d}>
                     {d.name || d}
                   </option>
                 ))}
@@ -219,7 +243,7 @@ export const Transfer = () => {
             ) : transfers.length === 0 ? (
               <EmptyState
                 icon="↥"
-                title="No transfer logs found"
+                title="No stock transfers recorded yet."
                 description="No stock transfers match your current filter parameters."
               />
             ) : (
@@ -228,55 +252,83 @@ export const Transfer = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th>Transfer Date</th>
-                        <th>Department / Lab</th>
+                        <th>Date</th>
                         <th>Product</th>
-                        <th>Stock Register</th>
                         <th>Quantity</th>
+                        <th>Receiving Department</th>
                         <th>Indent Reference</th>
-                        <th>Issued By</th>
-                        <th>Purpose / Remarks</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {transfers.map((item) => (
-                        <tr key={item._id}>
-                          <td style={{ whiteSpace: 'nowrap' }}>{item.date || item.transferDate}</td>
-                          <td>
-                            <strong>{typeof item.department === 'object' ? (item.department?.name || '—') : (item.department || '—')}</strong>
-                            {item.receivedByPerson && (
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Req by: {item.receivedByPerson}
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <div className="cell-strong">{item.productName}</div>
-                            <span className="code">{item.productCode}</span>
-                          </td>
-                          <td>
-                            <span className="badge badge-blue">{item.stockRegister || 'SR1'}</span>
-                          </td>
-                          <td>
-                            <strong style={{ color: 'var(--blue-700)' }}>
-                              -{item.quantity} {item.unit || 'Units'}
-                            </strong>
-                          </td>
-                          <td>
-                            {item.indentNumber ? (
-                              <span className="code" style={{ fontWeight: 700, color: 'var(--blue-700)' }}>
-                                {item.indentNumber}
+                      {transfers.map((item) => {
+                        let dateDisplay = item.date || item.transferDate || '';
+                        if (item.transferDate) {
+                          const d = new Date(item.transferDate);
+                          if (!isNaN(d.getTime())) {
+                            dateDisplay = d.toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            });
+                          }
+                        }
+                        const deptName =
+                          typeof item.department === 'object'
+                            ? item.department?.name || '—'
+                            : item.department || '—';
+                        const qtyNum = Number(item.quantity) || 0;
+                        const unitName =
+                          item.unit || item.unitName || (typeof item.product?.unit === 'string' ? item.product.unit : '') || 'Units';
+
+                        return (
+                          <tr key={item._id || item.id}>
+                            <td style={{ whiteSpace: 'nowrap' }}>{dateDisplay}</td>
+                            <td>
+                              <div className="cell-strong">{item.productName}</div>
+                              <span className="code">{item.productCode}</span>
+                            </td>
+                            <td>
+                              <strong style={{ color: 'var(--amber-700)' }}>
+                                -{qtyNum} {unitName}
+                              </strong>
+                            </td>
+                            <td>
+                              <strong>{deptName}</strong>
+                              {item.receivedByPerson && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  Req by: {item.receivedByPerson}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              {item.indentNumber ? (
+                                <span className="code" style={{ fontWeight: 700, color: 'var(--blue-700)' }}>
+                                  {item.indentNumber}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>Direct Issue</span>
+                              )}
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  background: '#ecfdf5',
+                                  color: '#059669',
+                                  border: '1px solid #a7f3d0'
+                                }}
+                              >
+                                Completed
                               </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>Direct Issue</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: '0.8rem' }}>{item.issuedBy || 'Store Keeper'}</td>
-                          <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {item.remarks || '—'}
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -290,6 +342,35 @@ export const Transfer = () => {
                 />
               </>
             )}
+          </div>
+        </div>
+
+        {/* 4. STOCK TRANSFER POLICY */}
+        <div className="card">
+          <div className="card-head">
+            <span className="card-title">Stock Transfer Policy</span>
+          </div>
+          <div className="card-body" style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: '1.7' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ color: '#059669', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>✓</span>
+                <span>Transferring stock immediately decreases current store inventory.</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ color: '#059669', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>✓</span>
+                <span>Transfer quantity cannot exceed available stock.</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ color: '#059669', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>✓</span>
+                <span>
+                  Department requisitions should be reviewed and approved via <strong>Manage Indents</strong>.
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ color: '#059669', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>✓</span>
+                <span>All transfers are recorded in <strong>Stock History</strong> with receiving department information.</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
