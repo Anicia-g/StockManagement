@@ -101,11 +101,11 @@ export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = n
       const payload = {
         productId: selectedProductId,
         quantity: numQty,
-        supplier: supplier.trim(),
-        invoiceNumber: invoiceNumber.trim(),
+        supplier: supplier ? supplier.trim() : '',
+        invoiceNumber: invoiceNumber ? invoiceNumber.trim() : '',
         unitPrice: Number(unitPrice) || 0,
         date,
-        remarks: remarks.trim()
+        remarks: remarks ? remarks.trim() : ''
       };
 
       const res = await purchaseApi.recordPurchase(payload);
@@ -174,11 +174,6 @@ export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = n
     <div className="card form-card">
       <div className="card-head">
         <h2>Record Stock Purchase</h2>
-        {selectedProduct && (
-          <span className="badge badge-blue">
-            Stock Register: {selectedProduct.stockRegister || 'SR1'}
-          </span>
-        )}
       </div>
       <div className="card-pad">
         {feedback && (
@@ -253,14 +248,13 @@ export const PurchaseForm = ({ onPurchaseCompleted = null, onPurchaseSuccess = n
             </div>
 
             <div className="field">
-              <label htmlFor="purchase-supplier">Supplier / Vendor Name *</label>
+              <label htmlFor="purchase-supplier">Supplier / Vendor Name</label>
               <input
                 type="text"
                 id="purchase-supplier"
                 placeholder="e.g. Sri Balaji Electricals"
                 value={supplier}
                 onChange={(e) => setSupplier(e.target.value)}
-                required
               />
             </div>
 

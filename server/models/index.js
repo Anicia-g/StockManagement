@@ -14,6 +14,7 @@ import StockTransaction from './StockTransaction.js';
 import Indent from './Indent.js';
 import IndentItem from './IndentItem.js';
 import Notification from './Notification.js';
+import Faculty from './Faculty.js';
 
 // ==========================================
 // RELATIONSHIPS / ASSOCIATIONS
@@ -100,6 +101,13 @@ StockTransaction.belongsTo(User, { foreignKey: 'recorded_by', as: 'recorder' });
 Department.hasMany(StockTransaction, { foreignKey: 'department_id', as: 'departmentTransactions' });
 StockTransaction.belongsTo(Department, { foreignKey: 'department_id', as: 'department' });
 
+// Faculty
+User.hasOne(Faculty, { foreignKey: 'user_id', as: 'facultyProfile' });
+Faculty.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+Department.hasMany(Faculty, { foreignKey: 'department_id', as: 'facultyMembers' });
+Faculty.belongsTo(Department, { foreignKey: 'department_id', as: 'department' });
+
 export {
   sequelize,
   Role,
@@ -108,6 +116,7 @@ export {
   Unit,
   StockDocument,
   User,
+  Faculty,
   Product,
   ProductDocumentReference,
   ProductRemark,
@@ -127,6 +136,7 @@ export default {
   Unit,
   StockDocument,
   User,
+  Faculty,
   Product,
   ProductDocumentReference,
   ProductRemark,

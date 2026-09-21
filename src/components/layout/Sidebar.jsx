@@ -154,6 +154,14 @@ export const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
                 <span className="icon">📖</span> Stock Registers
               </NavLink>
 
+              <NavLink
+                to="/faculty"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={handleLinkClick}
+              >
+                <span className="icon">👥</span> Faculty
+              </NavLink>
+
               <div className="nav-label">Requisitions & Management</div>
               <NavLink
                 to="/manage-indents"

@@ -8,43 +8,65 @@ export const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [sessionNotice, setSessionNotice] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Check for session expired notice in sessionStorage
   useEffect(() => {
-    if (isAuthenticated) {
-      const target = location.state?.from?.pathname || (user?.role === 'ADMIN' ? '/admin/dashboard' : '/faculty/dashboard');
-      navigate(target, { replace: true });
+    const expiredMsg = sessionStorage.getItem('auth_expired_notice');
+    if (expiredMsg) {
+      setSessionNotice(expiredMsg);
+      sessionStorage.removeItem('auth_expired_notice');
+    }
+  }, []);
+
+  // Redirect if already authenticated based on role
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const from = location.state?.from?.pathname;
+      if (from && from !== '/login') {
+        navigate(from, { replace: true });
+        return;
+      }
+      if (user.role?.toUpperCase() === 'ADMIN') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/faculty/catalog', { replace: true });
+      }
     }
   }, [isAuthenticated, user, navigate, location]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSessionNotice('');
 
-    if (!username.trim() || !password.trim()) {
-      setError('Please provide both username and password.');
+    if (!identifier.trim() || !password.trim()) {
+      setError('Please provide both username/email and password.');
       return;
     }
 
     setLoading(true);
-    const res = await login(username.trim(), password);
+    const res = await login(identifier.trim(), password);
     setLoading(false);
 
-    if (res.success) {
-      const target = location.state?.from?.pathname || (res.user?.role === 'ADMIN' ? '/admin/dashboard' : '/faculty/dashboard');
-      navigate(target, { replace: true });
+    if (res.success && res.user) {
+      const from = location.state?.from?.pathname;
+      if (from && from !== '/login') {
+        navigate(from, { replace: true });
+        return;
+      }
+      if (res.user.role?.toUpperCase() === 'ADMIN') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/faculty/catalog', { replace: true });
+      }
     } else {
-      setError(res.error || 'Invalid credentials');
+      setError(res.error || 'Invalid username/email or password');
     }
-  };
-
-  const handleQuickFill = (u, p) => {
-    setUsername(u);
-    setPassword(p);
-    setError('');
   };
 
   return (
@@ -58,28 +80,21 @@ export const Login = () => {
           Central Consumable Store & Inventory Record Maintenance
         </p>
 
-        {/* Quick Demo Access Buttons */}
-        <div className="login-hint-box">
-          <div style={{ fontWeight: 700, marginBottom: '6px' }}>Quick Login:</div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={() => handleQuickFill('admin', 'admin123')}
-              style={{ flex: 1, fontSize: '0.74rem' }}
-            >
-              🔑 Admin
-            </button>
-            <button
-              type="button"
-              className="btn-outline btn-sm"
-              onClick={() => handleQuickFill('faculty', 'faculty123')}
-              style={{ flex: 1, fontSize: '0.74rem' }}
-            >
-              👤 Faculty
-            </button>
+        {sessionNotice && (
+          <div
+            className="login-error-box"
+            style={{
+              backgroundColor: '#eff6ff',
+              borderColor: '#93c5fd',
+              color: '#1e40af',
+              marginBottom: '16px'
+            }}
+            role="status"
+          >
+            <span>ℹ</span>
+            <span>{sessionNotice}</span>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="login-error-box" role="alert">
@@ -88,21 +103,22 @@ export const Login = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="field">
-            <label htmlFor="login-username">Username or Email</label>
+            <label htmlFor="login-identifier">Username or Email</label>
             <input
               type="text"
-              id="login-username"
-              name="username"
-              placeholder="Enter your username"
-              value={username}
+              id="login-identifier"
+              name="identifier"
+              placeholder="Enter your username or email"
+              value={identifier}
               onChange={(e) => {
-                setUsername(e.target.value);
+                setIdentifier(e.target.value);
                 setError('');
               }}
               autoComplete="username"
               required
+              disabled={loading}
             />
           </div>
 
@@ -120,6 +136,7 @@ export const Login = () => {
               }}
               autoComplete="current-password"
               required
+              disabled={loading}
             />
           </div>
 
@@ -127,14 +144,14 @@ export const Login = () => {
             type="submit"
             variant="primary"
             disabled={loading}
-            style={{ width: '100%', marginTop: '6px' }}
+            style={{ width: '100%', marginTop: '8px' }}
           >
             {loading ? 'Authenticating...' : 'Login to System'}
           </Button>
         </form>
 
         <div className="login-foot">
-          Role-Based Access Control · Admin & Faculty Indents
+          Secure Role-Based Access Control
         </div>
       </div>
     </div>

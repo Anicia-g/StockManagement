@@ -34,13 +34,21 @@ export const EditProductModal = ({ isOpen, onClose, product, onProductUpdated })
           masterDataApi.getStockDocuments().catch(() => ({}))
         ]);
         if (catRes?.success && catRes.categories?.length > 0) {
-          setCategories(catRes.categories.map(c => c.name));
+          const cats = catRes.categories.map(c => c.name);
+          if (product?.category && !cats.includes(product.category)) {
+            cats.push(product.category);
+          }
+          setCategories(cats);
         }
         if (unitRes?.success && unitRes.units?.length > 0) {
           setUnits(unitRes.units.map(u => u.name));
         }
         if (docRes?.success && docRes.documents?.length > 0) {
-          setRegisterOptions(docRes.documents.map(d => d.name));
+          const docs = docRes.documents.map(d => d.name);
+          if (product?.stockRegister && !docs.includes(product.stockRegister)) {
+            docs.push(product.stockRegister);
+          }
+          setRegisterOptions(docs);
         }
       } catch (e) {
         console.error('Failed to load master data in EditProductModal:', e);
@@ -73,6 +81,13 @@ export const EditProductModal = ({ isOpen, onClose, product, onProductUpdated })
         })));
       } else {
         setRegisterRefs([{ sheet: product.stockRegister || 'SR1', page: product.pageNumber || 1 }]);
+      }
+
+      if (product.category) {
+        setCategories(prev => prev.includes(product.category) ? prev : [...prev, product.category]);
+      }
+      if (product.stockRegister) {
+        setRegisterOptions(prev => prev.includes(product.stockRegister) ? prev : [...prev, product.stockRegister]);
       }
       setError('');
     }

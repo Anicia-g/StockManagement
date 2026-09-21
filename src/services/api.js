@@ -27,6 +27,7 @@ api.interceptors.response.use(
       localStorage.removeItem('auth_user');
       localStorage.removeItem('auth_token');
       if (window.location.pathname !== '/login') {
+        sessionStorage.setItem('auth_expired_notice', 'Your session has expired. Please log in again.');
         window.location.href = '/login';
       }
     }
@@ -45,6 +46,33 @@ export const authApi = {
   },
   getUsers: async () => {
     const res = await api.get('/auth/users');
+    return res.data;
+  }
+};
+
+export const facultyApi = {
+  getFaculty: async (params = {}) => {
+    const res = await api.get('/faculty', { params });
+    return res.data;
+  },
+  getFacultyById: async (id) => {
+    const res = await api.get(`/faculty/${id}`);
+    return res.data;
+  },
+  createFaculty: async (data) => {
+    const res = await api.post('/faculty', data);
+    return res.data;
+  },
+  updateFaculty: async (id, data) => {
+    const res = await api.put(`/faculty/${id}`, data);
+    return res.data;
+  },
+  updateStatus: async (id, status) => {
+    const res = await api.patch(`/faculty/${id}/status`, { status });
+    return res.data;
+  },
+  deleteFaculty: async (id) => {
+    const res = await api.delete(`/faculty/${id}`);
     return res.data;
   }
 };
@@ -70,6 +98,10 @@ export const masterDataApi = {
     const res = await api.get('/categories', { params });
     return res.data;
   },
+  getCategoryById: async (id) => {
+    const res = await api.get(`/categories/${id}`);
+    return res.data;
+  },
   createCategory: async (data) => {
     const res = await api.post('/categories', data);
     return res.data;
@@ -78,12 +110,24 @@ export const masterDataApi = {
     const res = await api.put(`/categories/${id}`, data);
     return res.data;
   },
-  deleteCategory: async (id) => {
-    const res = await api.delete(`/categories/${id}`);
+  updateCategoryStatus: async (id, active) => {
+    const res = await api.patch(`/categories/${id}/status`, { active });
+    return res.data;
+  },
+  deactivateCategory: async (id) => {
+    const res = await api.patch(`/categories/${id}/status`, { active: false });
+    return res.data;
+  },
+  deleteCategory: async (id, params = {}) => {
+    const res = await api.delete(`/categories/${id}`, { params });
     return res.data;
   },
   getUnits: async (params = {}) => {
     const res = await api.get('/units', { params });
+    return res.data;
+  },
+  getUnitById: async (id) => {
+    const res = await api.get(`/units/${id}`);
     return res.data;
   },
   createUnit: async (data) => {
@@ -94,8 +138,16 @@ export const masterDataApi = {
     const res = await api.put(`/units/${id}`, data);
     return res.data;
   },
-  deleteUnit: async (id) => {
-    const res = await api.delete(`/units/${id}`);
+  updateUnitStatus: async (id, active) => {
+    const res = await api.patch(`/units/${id}/status`, { active });
+    return res.data;
+  },
+  deactivateUnit: async (id) => {
+    const res = await api.patch(`/units/${id}/status`, { active: false });
+    return res.data;
+  },
+  deleteUnit: async (id, params = {}) => {
+    const res = await api.delete(`/units/${id}`, { params });
     return res.data;
   },
   getStockDocuments: async (params = {}) => {
@@ -110,8 +162,16 @@ export const masterDataApi = {
     const res = await api.put(`/stock-documents/${id}`, data);
     return res.data;
   },
-  deleteStockDocument: async (id) => {
-    const res = await api.delete(`/stock-documents/${id}`);
+  deleteStockDocument: async (id, params = {}) => {
+    const res = await api.delete(`/stock-documents/${id}`, { params });
+    return res.data;
+  },
+  updateStockDocumentStatus: async (id, active) => {
+    const res = await api.patch(`/stock-documents/${id}/status`, { active });
+    return res.data;
+  },
+  deactivateStockDocument: async (id) => {
+    const res = await api.patch(`/stock-documents/${id}/status`, { active: false });
     return res.data;
   }
 };

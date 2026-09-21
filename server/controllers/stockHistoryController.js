@@ -13,6 +13,8 @@ export const getStockHistory = async (req, res, next) => {
       date,
       fromDate,
       toDate,
+      startDate,
+      endDate,
       search,
       register,
       stockRegister,
@@ -39,13 +41,19 @@ export const getStockHistory = async (req, res, next) => {
     }
 
     if (department && department !== 'ALL') {
-      where['$department.name$'] = { [Op.like]: `%${department.trim()}%` };
+      where[Op.or] = [
+        { '$department.name$': { [Op.like]: `%${department.trim()}%` } },
+        { '$department.code$': { [Op.like]: `%${department.trim()}%` } }
+      ];
     }
 
-    if (fromDate || toDate) {
+    const start = fromDate || startDate;
+    const end = toDate || endDate;
+
+    if (start || end) {
       where.transaction_date = {};
-      if (fromDate) where.transaction_date[Op.gte] = new Date(fromDate);
-      if (toDate) where.transaction_date[Op.lte] = new Date(toDate + ' 23:59:59');
+      if (start) where.transaction_date[Op.gte] = new Date(start + ' 00:00:00');
+      if (end) where.transaction_date[Op.lte] = new Date(end + ' 23:59:59');
     } else if (date) {
       where.transaction_date = {
         [Op.gte]: new Date(date + ' 00:00:00'),
@@ -54,13 +62,15 @@ export const getStockHistory = async (req, res, next) => {
     }
 
     if (search) {
+      const s = search.trim();
       where[Op.or] = [
-        { transaction_code: { [Op.like]: `%${search.trim()}%` } },
-        { remarks: { [Op.like]: `%${search.trim()}%` } },
-        { '$product.product_name$': { [Op.like]: `%${search.trim()}%` } },
-        { '$product.product_code$': { [Op.like]: `%${search.trim()}%` } },
-        { '$department.name$': { [Op.like]: `%${search.trim()}%` } },
-        { '$recorder.name$': { [Op.like]: `%${search.trim()}%` } }
+        { transaction_code: { [Op.like]: `%${s}%` } },
+        { remarks: { [Op.like]: `%${s}%` } },
+        { reference_type: { [Op.like]: `%${s}%` } },
+        { '$product.product_name$': { [Op.like]: `%${s}%` } },
+        { '$product.product_code$': { [Op.like]: `%${s}%` } },
+        { '$department.name$': { [Op.like]: `%${s}%` } },
+        { '$recorder.name$': { [Op.like]: `%${s}%` } }
       ];
     }
 
